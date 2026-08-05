@@ -4,3 +4,6 @@
 *.a
 *.so
 compile_commands.json
+
+__pycache__/
+*.pyc
