@@ -12,6 +12,8 @@
 #include <thread>
 #include <vector>
 
+#include "ai/llm.h"
+#include "ai/vc.h"
 #include "anonymize/redactor.h"
 #include "audio/device.h"
 #include "audio/fileio.h"
@@ -39,6 +41,10 @@ void print_version() {
     } else {
         std::printf("whisper: %s\n", transcribe::find_whisper_binary().c_str());
     }
+    std::printf("neural VC: %s\n", vc::status().c_str());
+    std::printf("local LLM: %s\n",
+                llm::llm_available() ? llm::backend_name().c_str()
+                                     : "not detected");
 }
 
 void print_help() {

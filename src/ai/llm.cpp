@@ -127,13 +127,13 @@ std::string parse_llama_response(const std::string& raw) {
 }  // namespace
 
 bool llm_available() {
-    return curl_available() && (!probe_ollama().empty() || !probe_llama().empty());
+    return curl_available() && (!probe_llama().empty() || !probe_ollama().empty());
 }
 
 std::string backend_name() {
     if (!curl_available()) return "";
-    if (!probe_ollama().empty()) return "ollama";
     if (!probe_llama().empty()) return "llama.cpp";
+    if (!probe_ollama().empty()) return "ollama";
     return "";
 }
 
@@ -142,6 +142,14 @@ std::string complete(const std::string& system_prompt,
     if (!llm_available()) return "";
 
     const std::string path = "/tmp/ocs_llm_payload.json";
+    const std::string llama = probe_llama();
+    if (!llama.empty()) {
+        std::string payload =
+            R"({"model":"local","stream":false,"messages":[{"role":"system","content":")" +
+            json_escape(system_prompt) + R"("},{"role":"user","content":")" +
+            json_escape(user_prompt) + "\"}]}";
+        return parse_llama_response(post_json(llama + "/v1/chat/completions", payload, path));
+    }
     const std::string ollama = probe_ollama();
     if (!ollama.empty()) {
         std::string model = ollama_model();
@@ -151,14 +159,6 @@ std::string complete(const std::string& system_prompt,
             R"(","stream":false,"system":")" + json_escape(system_prompt) +
             R"(","prompt":")" + json_escape(user_prompt) + "\"}";
         return parse_ollama_response(post_json(ollama + "/api/generate", payload, path));
-    }
-    const std::string llama = probe_llama();
-    if (!llama.empty()) {
-        std::string payload =
-            R"({"model":"local","stream":false,"messages":[{"role":"system","content":")" +
-            json_escape(system_prompt) + R"("},{"role":"user","content":")" +
-            json_escape(user_prompt) + "\"}]}";
-        return parse_llama_response(post_json(llama + "/v1/chat/completions", payload, path));
     }
     return "";
 }

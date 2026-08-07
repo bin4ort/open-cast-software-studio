@@ -7,6 +7,7 @@ project(ocs_studio
 
 option(OCS_GUI   "Build the Qt6 native GUI" ON)
 option(OCS_TESTS "Build and register unit tests" ON)
+option(OCS_NEURAL_VC "Experimental onnxruntime-based neural voice conversion" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -47,6 +48,7 @@ add_library(ocs_core STATIC
   src/anonymize/redactor.cpp
   src/ai/rewriter.cpp
   src/ai/llm.cpp
+  src/ai/vc.cpp
   src/tts.cpp
   src/processing/job.cpp
 )
@@ -68,6 +70,17 @@ if(NOT CMAKE_CROSSCOMPILING)
   find_program(FFMPEG_EXECUTABLE ffmpeg)
   if(FFMPEG_EXECUTABLE)
     target_compile_definitions(ocs_core PRIVATE OCS_HAVE_FFMPEG=1)
+  endif()
+endif()
+
+if(OCS_NEURAL_VC)
+  pkg_check_modules(ONNXRUNTIME QUIET IMPORTED_TARGET onnxruntime)
+  if(ONNXRUNTIME_FOUND)
+    target_link_libraries(ocs_core PUBLIC PkgConfig::ONNXRUNTIME)
+    target_compile_definitions(ocs_core PRIVATE OCS_NEURAL_VC=1)
+    message(STATUS "Neural VC: onnxruntime found (experimental)")
+  else()
+    message(WARNING "OCS_NEURAL_VC=ON but onnxruntime was not found - neural VC disabled")
   endif()
 endif()
 
