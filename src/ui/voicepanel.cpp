@@ -14,6 +14,7 @@
 #include <cctype>
 #include <string>
 
+#include "ai/llm.h"
 #include "dsp/phase_vocoder.h"
 
 namespace ocs::ui {
@@ -183,15 +184,30 @@ void VoicePanel::on_source_changed(int index) {
 }
 
 void VoicePanel::on_translate() {
-    const dsp::ShiftParams p = heuristic_from_prompt(prompt_edit_->toPlainText());
+    const QString prompt = prompt_edit_->toPlainText();
+    dsp::ShiftParams p;
+    bool llm_used = false;
+    if (llm::llm_available()) {
+        llm_used = llm::translate_prompt(prompt.toStdString(), p);
+    }
+    if (!llm_used) {
+        p = heuristic_from_prompt(prompt);
+    }
     applying_profile_ = true;
     pitch_spin_->setValue(p.pitch_semitones);
     formant_spin_->setValue(p.formant_semitones);
     applying_profile_ = false;
     prompt_translated_ = true;
-    ai_status_->setText(QStringLiteral("Translated: pitch %1 st, formants %2 st")
-                            .arg(p.pitch_semitones)
-                            .arg(p.formant_semitones));
+    ai_status_->setText(llm_used
+                            ? QStringLiteral("AI translated (%1): pitch %2 st, "
+                                             "formants %3 st")
+                                  .arg(QString::fromStdString(llm::backend_name()))
+                                  .arg(p.pitch_semitones)
+                                  .arg(p.formant_semitones)
+                            : QStringLiteral("Keyword match (no local LLM): "
+                                             "pitch %1 st, formants %2 st")
+                                  .arg(p.pitch_semitones)
+                                  .arg(p.formant_semitones));
     emit changed();
 }
 

@@ -46,6 +46,7 @@ add_library(ocs_core STATIC
   src/transcribe/whisper.cpp
   src/anonymize/redactor.cpp
   src/ai/rewriter.cpp
+  src/ai/llm.cpp
   src/tts.cpp
   src/processing/job.cpp
 )

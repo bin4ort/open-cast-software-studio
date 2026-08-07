@@ -7,6 +7,7 @@
 
 #include <samplerate.h>
 
+#include "ai/llm.h"
 #include "ai/rewriter.h"
 #include "anonymize/redactor.h"
 #include "audio/fileio.h"
@@ -98,12 +99,22 @@ HybridResult run_hybrid(const AudioData& audio, dsp::Gender target,
     HybridResult res;
     res.audio = std::vector<double>(audio.samples.begin(), audio.samples.end());
 
-    // 1. Rewrite gendered self-references toward the target gender.
+    // 1. Rewrite gendered self-references toward the target gender. A local
+    // LLM (if reachable) does it more naturally; the rules engine is the
+    // offline fallback.
     std::vector<Segment> rewritten;
+    const std::string target_name = dsp::gender_name(target);
+    const bool use_llm = llm::llm_available();
     for (auto seg : segments) {
+        std::string rw;
         bool changed = false;
-        const std::string rw =
-            rewrite::rewrite_for_gender(seg.text, target, changed);
+        if (use_llm) {
+            rw = llm::rewrite_phrase(seg.text, target_name);
+            if (!rw.empty() && rw != seg.text) changed = true;
+        }
+        if (!changed) {
+            rw = rewrite::rewrite_for_gender(seg.text, target, changed);
+        }
         if (changed) {
             seg.text = rw;
             seg.has_pii = true;
