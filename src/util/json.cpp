@@ -12,6 +12,7 @@ namespace ocs::util {
 
 Json::Json(bool b) : type_(Type::Bool), bool_(b) {}
 Json::Json(double n) : type_(Type::Number), num_(n) {}
+Json::Json(int n) : type_(Type::Number), num_(static_cast<double>(n)) {}
 Json::Json(const char* s) : type_(Type::String), str_(s ? s : "") {}
 Json::Json(std::string s) : type_(Type::String), str_(std::move(s)) {}
 Json::Json(std::vector<Json> arr) : type_(Type::Array), array_(std::move(arr)) {}
@@ -268,6 +269,70 @@ Json Json::parse_file(const std::string& path) {
     std::ostringstream ss;
     ss << f.rdbuf();
     return parse(ss.str());
+}
+
+// ---------------------------------------------------------------------------
+// Serialization
+// ---------------------------------------------------------------------------
+namespace {
+
+std::string dump_string(const std::string& s) {
+    std::string out = "\"";
+    for (char c : s) {
+        switch (c) {
+            case '"': out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default: out += c; break;
+        }
+    }
+    out += '"';
+    return out;
+}
+
+std::string dump_value(const Json& j) {
+    switch (j.type()) {
+        case Json::Type::Null: return "null";
+        case Json::Type::Bool: return j.as_bool() ? "true" : "false";
+        case Json::Type::Number: {
+            const double n = j.as_number();
+            if (n == static_cast<long long>(n)) {
+                return std::to_string(static_cast<long long>(n));
+            }
+            return std::to_string(n);
+        }
+        case Json::Type::String: return dump_string(j.as_string());
+        case Json::Type::Array: {
+            std::string out = "[";
+            const auto& arr = j.as_array();
+            for (size_t i = 0; i < arr.size(); ++i) {
+                if (i) out += ",";
+                out += dump_value(arr[i]);
+            }
+            out += "]";
+            return out;
+        }
+        case Json::Type::Object: {
+            std::string out = "{";
+            const auto& obj = j.as_object();
+            size_t i = 0;
+            for (const auto& [k, v] : obj) {
+                if (i++) out += ",";
+                out += dump_string(k) + ":" + dump_value(v);
+            }
+            out += "}";
+            return out;
+        }
+    }
+    return "null";
+}
+
+}  // namespace
+
+std::string Json::dump() const {
+    return dump_value(*this);
 }
 
 }  // namespace ocs::util

@@ -187,7 +187,11 @@ bool open_live(LiveStream& ls, int input_dev, int output_dev,
         static_cast<unsigned long>(frames_per_buffer), paClipOff,
         live_cb, &ls);
     if (e != paNoError) {
-        err = Pa_GetErrorText(e);
+        const char* in_name = Pa_GetDeviceInfo(input_dev) ? Pa_GetDeviceInfo(input_dev)->name : "?";
+        const char* out_name = Pa_GetDeviceInfo(output_dev) ? Pa_GetDeviceInfo(output_dev)->name : "?";
+        err = std::string(Pa_GetErrorText(e)) + " (input '" + in_name +
+              "', output '" + out_name +
+              "'). Is the microphone in use by another application?";
         return false;
     }
     return true;

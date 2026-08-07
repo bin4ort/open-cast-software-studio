@@ -3,15 +3,22 @@
 #include "ui/voicepanel.h"
 
 #include <QComboBox>
+#include <QDir>
 #include <QDoubleSpinBox>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QHBoxLayout>
 #include <QLabel>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QStandardPaths>
 #include <QVBoxLayout>
 
 #include <cctype>
+#include <fstream>
+#include <map>
 #include <string>
 
 #include "ai/llm.h"
@@ -111,10 +118,19 @@ VoicePanel::VoicePanel(bool live, QWidget* parent)
     form->addRow(QStringLiteral("Formants:"), formant_spin_);
     if (live_) formant_spin_->setEnabled(false);
 
-    dsp_panel_ = new QWidget(this);
-    dsp_panel_->setLayout(form);
+    // Save / load user presets to files.
+    auto* preset_row = new QHBoxLayout;
+    auto* save_button = new QPushButton(QStringLiteral("Save preset..."));
+    connect(save_button, &QPushButton::clicked, this, &VoicePanel::on_save_preset);
+    auto* load_button = new QPushButton(QStringLiteral("Load preset..."));
+    connect(load_button, &QPushButton::clicked, this, &VoicePanel::on_load_preset);
+    preset_row->addWidget(save_button);
+    preset_row->addWidget(load_button);
+    preset_row->addStretch(1);
+    form->addRow(QStringLiteral("User presets:"), preset_row);
 
-    // AI panel: system prompt + translate.
+    // AI panel: system prompt + translate. Shown in addition to the DSP
+    // controls (pitch/formant stay manually adjustable in AI mode).
     ai_panel_ = new QWidget(this);
     auto* ai_layout = new QVBoxLayout(ai_panel_);
     ai_layout->setContentsMargins(0, 0, 0, 0);
@@ -133,7 +149,7 @@ VoicePanel::VoicePanel(bool live, QWidget* parent)
     ai_layout->addWidget(ai_status_);
     ai_panel_->hide();
 
-    layout->addWidget(dsp_panel_);
+    layout->addLayout(form);
     layout->addWidget(ai_panel_);
 }
 
@@ -178,7 +194,6 @@ void VoicePanel::on_gender_changed(int index) {
 
 void VoicePanel::on_source_changed(int index) {
     const bool ai = index == 1;
-    dsp_panel_->setVisible(!ai);
     ai_panel_->setVisible(ai);
     emit changed();
 }
@@ -216,6 +231,66 @@ void VoicePanel::on_preset_changed(int index) {
     const auto& ps = dsp::presets();
     if (index - 1 < static_cast<int>(ps.size())) {
         apply_shift(ps[index - 1].params);
+    }
+}
+
+util::Json VoicePanel::snapshot() const {
+    std::map<std::string, util::Json> m;
+    m["preset"] = util::Json(preset_combo_->currentIndex());
+    m["gender"] = util::Json(static_cast<int>(gender()));
+    m["source"] = util::Json(source_combo_->currentIndex());
+    m["pitch"] = util::Json(params().pitch_semitones);
+    m["formant"] = util::Json(params().formant_semitones);
+    m["prompt"] = util::Json(prompt().toStdString());
+    m["prompt_translated"] = util::Json(prompt_translated_);
+    return util::Json(std::move(m));
+}
+
+void VoicePanel::restore(const util::Json& obj) {
+    if (!obj.is_object()) return;
+    applying_profile_ = true;
+    if (obj.contains("pitch")) pitch_spin_->setValue(obj.at("pitch").as_number());
+    if (obj.contains("formant")) formant_spin_->setValue(obj.at("formant").as_number());
+    if (obj.contains("gender")) gender_combo_->setCurrentIndex(
+        static_cast<int>(obj.at("gender").as_number()));
+    if (obj.contains("source")) source_combo_->setCurrentIndex(
+        static_cast<int>(obj.at("source").as_number()));
+    if (obj.contains("preset")) preset_combo_->setCurrentIndex(
+        static_cast<int>(obj.at("preset").as_number()));
+    if (obj.contains("prompt")) prompt_edit_->setPlainText(
+        QString::fromStdString(obj.at("prompt").as_string()));
+    if (obj.contains("prompt_translated")) {
+        prompt_translated_ = obj.at("prompt_translated").as_bool();
+    }
+    applying_profile_ = false;
+    on_source_changed(source_combo_->currentIndex());
+    emit changed();
+}
+
+void VoicePanel::on_save_preset() {
+    const QString dir = QStandardPaths::writableLocation(
+        QStandardPaths::ConfigLocation) + QStringLiteral("/ocs_studio/presets");
+    QDir().mkpath(dir);
+    const QString path = QFileDialog::getSaveFileName(
+        this, QStringLiteral("Save preset"), dir,
+        QStringLiteral("OCS preset (*.json)"));
+    if (path.isEmpty()) return;
+    std::ofstream f(path.toStdString(), std::ios::trunc);
+    if (f) f << snapshot().dump();
+}
+
+void VoicePanel::on_load_preset() {
+    const QString dir = QStandardPaths::writableLocation(
+        QStandardPaths::ConfigLocation) + QStringLiteral("/ocs_studio/presets");
+    const QString path = QFileDialog::getOpenFileName(
+        this, QStringLiteral("Load preset"), dir,
+        QStringLiteral("OCS preset (*.json)"));
+    if (path.isEmpty()) return;
+    try {
+        restore(util::Json::parse_file(path.toStdString()));
+    } catch (const std::exception& e) {
+        QMessageBox::warning(this, QStringLiteral("OCS Studio"),
+                             QString::fromStdString(std::string("Invalid preset: ") + e.what()));
     }
 }
 

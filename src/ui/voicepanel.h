@@ -6,6 +6,7 @@
 
 #include "dsp/gender.h"
 #include "dsp/pipeline.h"
+#include "util/json.h"
 
 class QComboBox;
 class QDoubleSpinBox;
@@ -34,6 +35,10 @@ public:
     // Applies a shift preset (keeps the selected gender).
     void apply_shift(const dsp::ShiftParams& p);
 
+    // Persistence: current settings <-> JSON object.
+    util::Json snapshot() const;
+    void restore(const util::Json& obj);
+
 signals:
     void changed();
 
@@ -42,6 +47,8 @@ private slots:
     void on_source_changed(int index);
     void on_translate();
     void on_preset_changed(int index);
+    void on_save_preset();
+    void on_load_preset();
 
 private:
     bool live_;
@@ -50,7 +57,6 @@ private:
     QComboBox* source_combo_ = nullptr;
     QDoubleSpinBox* pitch_spin_ = nullptr;
     QDoubleSpinBox* formant_spin_ = nullptr;
-    QWidget* dsp_panel_ = nullptr;
     QWidget* ai_panel_ = nullptr;
     QPlainTextEdit* prompt_edit_ = nullptr;
     QPushButton* translate_button_ = nullptr;

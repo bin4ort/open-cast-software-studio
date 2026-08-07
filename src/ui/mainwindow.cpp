@@ -3,6 +3,7 @@
 #include "ui/mainwindow.h"
 
 #include <QCheckBox>
+#include <QCloseEvent>
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QFileDialog>
@@ -16,11 +17,13 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QStandardPaths>
 #include <QTabWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 
 #include <fstream>
+#include <map>
 #include <sstream>
 
 #include "anonymize/redactor.h"
@@ -32,6 +35,7 @@
 #include "ui/livepanel.h"
 #include "ui/voicepanel.h"
 #include "ui/waveform.h"
+#include "util/json.h"
 
 namespace ocs::ui {
 
@@ -53,6 +57,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     live_poll_timer_ = new QTimer(this);
     live_poll_timer_->setInterval(40);
     connect(live_poll_timer_, &QTimer::timeout, this, &MainWindow::on_live_poll);
+
+    load_settings();
 }
 
 MainWindow::~MainWindow() {
@@ -65,6 +71,75 @@ MainWindow::~MainWindow() {
         delete live_engine_;
         live_engine_ = nullptr;
     }
+}
+
+// ---------------------------------------------------------------------------
+// Settings persistence
+// ---------------------------------------------------------------------------
+namespace {
+
+QString settings_path() {
+    return QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) +
+           QStringLiteral("/ocs_studio/settings.json");
+}
+
+}  // namespace
+
+void MainWindow::save_settings() {
+    std::map<std::string, util::Json> m;
+    m["voice"] = voice_panel_->snapshot();
+    m["live_voice"] = live_voice_panel_->snapshot();
+    m["mode"] = util::Json(mode_combo_->currentIndex());
+    m["denoise"] = util::Json(denoise_check_->isChecked());
+    m["transcribe"] = util::Json(transcribe_check_->isChecked());
+    m["in_device"] = util::Json(in_device_combo_->currentData().toInt());
+    m["out_device"] = util::Json(out_device_combo_->currentData().toInt());
+    m["output_mode"] = util::Json(output_mode_combo_->currentIndex());
+    m["sample_rate"] = util::Json(sample_rate_spin_->value());
+    m["mute_silence"] = util::Json(mute_silence_check_->isChecked());
+    m["dry"] = util::Json(dry_check_->isChecked());
+    m["win_w"] = util::Json(width());
+    m["win_h"] = util::Json(height());
+
+    const util::Json root(std::move(m));
+    const QString path = settings_path();
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    std::ofstream f(path.toStdString(), std::ios::trunc);
+    if (f) f << root.dump();
+}
+
+void MainWindow::load_settings() {
+    try {
+        const util::Json root = util::Json::parse_file(settings_path().toStdString());
+        if (!root.is_object()) return;
+        if (root.contains("voice")) voice_panel_->restore(root.at("voice"));
+        if (root.contains("live_voice")) live_voice_panel_->restore(root.at("live_voice"));
+        if (root.contains("mode")) mode_combo_->setCurrentIndex(
+            static_cast<int>(root.at("mode").as_number()));
+        if (root.contains("denoise")) denoise_check_->setChecked(root.at("denoise").as_bool());
+        if (root.contains("transcribe")) transcribe_check_->setChecked(root.at("transcribe").as_bool());
+        if (root.contains("in_device")) in_device_combo_->setCurrentIndex(
+            in_device_combo_->findData(static_cast<int>(root.at("in_device").as_number())));
+        if (root.contains("out_device")) out_device_combo_->setCurrentIndex(
+            out_device_combo_->findData(static_cast<int>(root.at("out_device").as_number())));
+        if (root.contains("output_mode")) output_mode_combo_->setCurrentIndex(
+            static_cast<int>(root.at("output_mode").as_number()));
+        if (root.contains("sample_rate")) sample_rate_spin_->setValue(
+            static_cast<int>(root.at("sample_rate").as_number()));
+        if (root.contains("mute_silence")) mute_silence_check_->setChecked(root.at("mute_silence").as_bool());
+        if (root.contains("dry")) dry_check_->setChecked(root.at("dry").as_bool());
+        if (root.contains("win_w") && root.contains("win_h")) {
+            resize(static_cast<int>(root.at("win_w").as_number()),
+                   static_cast<int>(root.at("win_h").as_number()));
+        }
+    } catch (...) {
+        // First run or corrupt settings: ignore.
+    }
+}
+
+void MainWindow::closeEvent(QCloseEvent* event) {
+    save_settings();
+    QMainWindow::closeEvent(event);
 }
 
 // ---------------------------------------------------------------------------
@@ -304,6 +379,11 @@ void MainWindow::on_record_anon() { record_test(true); }
 
 void MainWindow::record_test(bool anonymized) {
     if (recording_.load()) return;
+    if (live_engine_->running()) {
+        QMessageBox::warning(this, QStringLiteral("OCS Studio"),
+                             QStringLiteral("Stop live masking before a mic test."));
+        return;
+    }
     const int in_dev = in_device_combo_->currentData().toInt();
     const int rate = sample_rate_spin_->value();
     if (in_dev < 0) {
@@ -488,6 +568,13 @@ void MainWindow::on_live_start_stop() {
         live_button_->setText(QStringLiteral("Start"));
         live_status_label_->setText(QStringLiteral("Stopped"));
         live_poll_timer_->stop();
+        record_raw_button_->setEnabled(true);
+        record_anon_button_->setEnabled(true);
+        return;
+    }
+    if (recording_.load()) {
+        QMessageBox::warning(this, QStringLiteral("OCS Studio"),
+                             QStringLiteral("Finish the mic test first."));
         return;
     }
 
@@ -517,6 +604,8 @@ void MainWindow::on_live_start_stop() {
         live_status_label_->setText(QStringLiteral("Running (virtual mic active)"));
     }
     live_poll_timer_->start();
+    record_raw_button_->setEnabled(false);
+    record_anon_button_->setEnabled(false);
 }
 
 void MainWindow::on_live_poll() {

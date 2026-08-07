@@ -19,6 +19,7 @@ public:
     Json() = default;
     Json(bool b);
     Json(double n);
+    Json(int n);
     Json(const char* s);
     Json(std::string s);
     Json(std::vector<Json> arr);
@@ -26,6 +27,9 @@ public:
 
     static Json parse(const std::string& text);
     static Json parse_file(const std::string& path);
+
+    // Serializes this value to compact JSON text.
+    std::string dump() const;
 
     Type type() const { return type_; }
     bool is_null() const { return type_ == Type::Null; }

@@ -37,6 +37,9 @@ public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
 
+protected:
+    void closeEvent(QCloseEvent* event) override;
+
 private slots:
     void on_pick_input();
     void on_process();
@@ -54,6 +57,8 @@ private:
     QWidget* build_process_tab();
     QWidget* build_live_tab();
     QWidget* build_transcript_tab();
+    void save_settings();
+    void load_settings();
 
     // Process tab.
     QLineEdit* input_path_ = nullptr;
