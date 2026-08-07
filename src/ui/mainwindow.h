@@ -44,6 +44,7 @@ private slots:
     void on_live_start_stop();
     void on_live_poll();
     void on_redact_transcript();
+    void on_preview_text();
 
 private:
     QWidget* build_process_tab();
@@ -62,6 +63,12 @@ private:
     Waveform* input_waveform_ = nullptr;
     Waveform* output_waveform_ = nullptr;
     QTimer* process_poll_timer_ = nullptr;
+
+    // Voice preview (P2).
+    QPlainTextEdit* preview_text_edit_ = nullptr;
+    QComboBox* preview_phrase_combo_ = nullptr;
+    QPushButton* preview_button_ = nullptr;
+    QLabel* preview_status_ = nullptr;
 
     std::thread process_thread_;
     std::atomic<bool> processing_{false};

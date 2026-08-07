@@ -34,6 +34,11 @@ const std::vector<Preset>& presets();
 // Returns nullptr if not found.
 const Preset* preset_named(const std::string& name);
 
+// Applies the pitch + formant shift to the entire buffer (no VAD gating).
+// Used for TTS previews where the whole signal is speech.
+std::vector<double> shift_audio(const std::vector<double>& input,
+                                int sample_rate, const ShiftParams& params);
+
 // VAD-gated global shift: every detected speech region is pitch/formant
 // shifted and crossfade-spliced back into the (denoised) original.
 std::vector<double> process_global(const std::vector<double>& input,

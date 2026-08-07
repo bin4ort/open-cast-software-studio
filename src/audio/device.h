@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "audio/ringbuf.h"
+#include "common.h"
 
 namespace ocs::audio {
 
@@ -60,5 +61,9 @@ bool open_live(LiveStream& ls, int input_dev, int output_dev,
 bool start_live(LiveStream& ls);
 bool stop_live(LiveStream& ls);
 void close_live(LiveStream& ls);
+
+// Plays a mono buffer through `out_device` to completion (blocking; call on a
+// worker thread). Sets *err on failure.
+void play_buffer(const AudioData& data, int out_device, std::string* err = nullptr);
 
 }  // namespace ocs::audio

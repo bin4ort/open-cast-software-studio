@@ -6,8 +6,11 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <mutex>
 #include <string>
+
+#include "common.h"
 
 namespace ocs::audio {
 
@@ -210,6 +213,58 @@ void close_live(LiveStream& ls) {
         Pa_CloseStream(static_cast<PaStream*>(ls.stream));
         ls.stream = nullptr;
     }
+}
+
+void play_buffer(const AudioData& data, int out_device, std::string* err) {
+    if (data.samples.empty() || out_device < 0) {
+        if (err) *err = "nothing to play";
+        return;
+    }
+
+    PaStreamParameters out_params{};
+    out_params.device = out_device;
+    out_params.channelCount = 1;
+    out_params.sampleFormat = paFloat32;
+    out_params.suggestedLatency =
+        Pa_GetDeviceInfo(out_device)
+            ? Pa_GetDeviceInfo(out_device)->defaultHighOutputLatency
+            : 0.1;
+
+    PaStream* stream = nullptr;
+    PaError e = Pa_OpenStream(
+        &stream, nullptr, &out_params, data.sample_rate,
+        paFramesPerBufferUnspecified, paClipOff, nullptr, nullptr);
+    if (e != paNoError) {
+        if (err) *err = Pa_GetErrorText(e);
+        return;
+    }
+
+    std::vector<float> out_f(data.samples.size());
+    for (size_t i = 0; i < data.samples.size(); ++i) {
+        out_f[i] = static_cast<float>(data.samples[i]);
+    }
+
+    if (Pa_StartStream(stream) != paNoError) {
+        Pa_CloseStream(stream);
+        if (err) *err = "could not start playback stream";
+        return;
+    }
+
+    const size_t chunk = 4096;
+    size_t pos = 0;
+    while (pos < out_f.size()) {
+        const unsigned long n = static_cast<unsigned long>(
+            std::min(chunk, out_f.size() - pos));
+        e = Pa_WriteStream(stream, out_f.data() + pos, n);
+        if (e != paNoError) {
+            if (err) *err = Pa_GetErrorText(e);
+            break;
+        }
+        pos += n;
+    }
+
+    Pa_StopStream(stream);
+    Pa_CloseStream(stream);
 }
 
 }  // namespace ocs::audio

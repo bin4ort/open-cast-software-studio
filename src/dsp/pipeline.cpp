@@ -98,6 +98,11 @@ std::vector<double> process_regions(
 
 }  // namespace
 
+std::vector<double> shift_audio(const std::vector<double>& input,
+                                int sample_rate, const ShiftParams& params) {
+    return shift_slice(input, sample_rate, params);
+}
+
 std::vector<double> process_global(const std::vector<double>& input,
                                    int sample_rate,
                                    const ShiftParams& params) {

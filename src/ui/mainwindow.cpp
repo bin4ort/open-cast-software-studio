@@ -26,7 +26,9 @@
 #include "anonymize/redactor.h"
 #include "audio/device.h"
 #include "audio/fileio.h"
+#include "dsp/pipeline.h"
 #include "processing/job.h"
+#include "tts.h"
 #include "ui/livepanel.h"
 #include "ui/voicepanel.h"
 #include "ui/waveform.h"
@@ -93,6 +95,33 @@ QWidget* MainWindow::build_process_tab() {
     voice_panel_ = new VoicePanel(false);
     voice_layout->addWidget(voice_panel_);
     layout->addWidget(voice_group);
+
+    // Voice preview: hear the configured voice reading an example text.
+    auto* preview_group = new QGroupBox(QStringLiteral("Voice preview"));
+    auto* preview_layout = new QVBoxLayout(preview_group);
+    preview_phrase_combo_ = new QComboBox;
+    preview_phrase_combo_->addItem(QStringLiteral("Use custom text below"), "");
+    preview_phrase_combo_->addItem(QStringLiteral("Hello, my name is Alex and I am here to help you."));
+    preview_phrase_combo_->addItem(QStringLiteral("Welcome back to the show, everyone!"));
+    preview_phrase_combo_->addItem(QStringLiteral("In a world of endless possibilities, one voice can change everything."));
+    connect(preview_phrase_combo_, &QComboBox::currentIndexChanged, this,
+            [this](int i) {
+                if (i > 0) preview_text_edit_->setPlainText(preview_phrase_combo_->currentText());
+            });
+    preview_text_edit_ = new QPlainTextEdit;
+    preview_text_edit_->setFixedHeight(70);
+    preview_text_edit_->setPlaceholderText(QStringLiteral("Example text for the preview..."));
+    preview_button_ = new QPushButton(QStringLiteral("Preview voice"));
+    connect(preview_button_, &QPushButton::clicked, this, &MainWindow::on_preview_text);
+    preview_status_ = new QLabel(QStringLiteral("espeak-ng required for preview."));
+    preview_status_->setWordWrap(true);
+    preview_layout->addWidget(preview_phrase_combo_);
+    preview_layout->addWidget(preview_text_edit_);
+    auto* preview_row = new QHBoxLayout;
+    preview_row->addWidget(preview_button_);
+    preview_row->addWidget(preview_status_, 1);
+    preview_layout->addLayout(preview_row);
+    layout->addWidget(preview_group);
 
     auto* opts_group = new QGroupBox(QStringLiteral("Options"));
     auto* opts_form = new QFormLayout(opts_group);
@@ -212,6 +241,55 @@ void MainWindow::on_process_poll() {
             transcript_edit_->appendPlainText(QString::fromStdString(seg.text));
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Voice preview
+// ---------------------------------------------------------------------------
+void MainWindow::on_preview_text() {
+    QString text = preview_text_edit_->toPlainText().trimmed();
+    if (text.isEmpty()) {
+        preview_status_->setText(QStringLiteral("Enter some example text first."));
+        return;
+    }
+    if (!tts::available()) {
+        preview_status_->setText(QStringLiteral(
+            "espeak-ng is not installed. Install it to enable voice preview."));
+        return;
+    }
+
+    AudioData spoken;
+    std::string err;
+    if (!tts::synthesize(text.toStdString(), voice_panel_->gender(), spoken, err)) {
+        preview_status_->setText(QString::fromStdString(err));
+        return;
+    }
+
+    // Apply the configured voice shift so the preview matches the target.
+    std::vector<double> in_d(spoken.samples.begin(), spoken.samples.end());
+    const std::vector<double> shifted =
+        dsp::shift_audio(in_d, spoken.sample_rate, voice_panel_->params());
+    AudioData out;
+    out.sample_rate = spoken.sample_rate;
+    out.samples.reserve(shifted.size());
+    for (double v : shifted) out.samples.push_back(static_cast<Sample>(v));
+
+    const int out_dev = audio::default_output_device();
+    if (out_dev < 0) {
+        preview_status_->setText(QStringLiteral("No output device available."));
+        return;
+    }
+    preview_status_->setText(QStringLiteral("Playing preview..."));
+    preview_button_->setEnabled(false);
+    std::thread([this, out, out_dev] {
+        std::string perr;
+        audio::play_buffer(out, out_dev, &perr);
+        QMetaObject::invokeMethod(this, [this, perr] {
+            preview_button_->setEnabled(true);
+            preview_status_->setText(
+                perr.empty() ? QStringLiteral("Preview done.") : QString::fromStdString(perr));
+        }, Qt::QueuedConnection);
+    }).detach();
 }
 
 // ---------------------------------------------------------------------------
