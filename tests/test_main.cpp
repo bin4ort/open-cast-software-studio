@@ -5,6 +5,7 @@
 #include <cstdio>
 
 // Test registration is done via static initializers in the included files.
+#include "gender_test.cpp"
 #include "redactor_test.cpp"
 #include "stft_test.cpp"
 #include "vocoder_test.cpp"

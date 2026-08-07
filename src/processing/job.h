@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "common.h"
+#include "dsp/gender.h"
 #include "dsp/pipeline.h"
 
 namespace ocs::job {
@@ -15,6 +16,7 @@ struct JobOptions {
     std::string output;
     dsp::AnonMode mode = dsp::AnonMode::Global;
     dsp::ShiftParams shift;
+    dsp::Gender target_gender = dsp::Gender::Generic;
     bool transcribe = false;
     bool write_transcript = false;   // write <output>.txt with redacted text
     std::string whisper_binary;      // optional override

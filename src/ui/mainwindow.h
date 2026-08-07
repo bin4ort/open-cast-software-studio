@@ -27,6 +27,7 @@ namespace ocs::ui {
 
 class Waveform;
 class LiveEngine;
+class VoicePanel;
 
 // Main application window: File processing, Live masking and Transcript tabs.
 class MainWindow : public QMainWindow {
@@ -48,14 +49,11 @@ private:
     QWidget* build_process_tab();
     QWidget* build_live_tab();
     QWidget* build_transcript_tab();
-    void populate_presets(QComboBox* combo);
 
     // Process tab.
     QLineEdit* input_path_ = nullptr;
     QLineEdit* output_path_ = nullptr;
-    QComboBox* preset_combo_ = nullptr;
-    QDoubleSpinBox* pitch_spin_ = nullptr;
-    QDoubleSpinBox* formant_spin_ = nullptr;
+    VoicePanel* voice_panel_ = nullptr;
     QComboBox* mode_combo_ = nullptr;
     QCheckBox* denoise_check_ = nullptr;
     QCheckBox* transcribe_check_ = nullptr;
@@ -75,8 +73,7 @@ private:
     // Live tab.
     QComboBox* in_device_combo_ = nullptr;
     QComboBox* out_device_combo_ = nullptr;
-    QComboBox* live_preset_combo_ = nullptr;
-    QDoubleSpinBox* live_pitch_spin_ = nullptr;
+    VoicePanel* live_voice_panel_ = nullptr;
     QSpinBox* sample_rate_spin_ = nullptr;
     QCheckBox* mute_silence_check_ = nullptr;
     QCheckBox* dry_check_ = nullptr;

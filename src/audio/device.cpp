@@ -59,6 +59,57 @@ std::vector<DeviceInfo> list_devices() {
     return out;
 }
 
+namespace {
+
+// ALSA pseudo-plugins / virtual graph nodes that are not real capture or
+// playback hardware. "default" is kept because it routes to the real device.
+bool is_pseudo_device(const std::string& name) {
+    static const char* kPseudo[] = {
+        "front",     "surround40", "surround41", "surround50",
+        "surround51", "surround71", "dmix",      "dsnoop",
+        "null",      "sysdefault", "pipewire",   "pulse",
+        "jack",      "empty",      "speexrate",
+    };
+    for (const char* p : kPseudo) {
+        if (name == p) return true;
+    }
+    return false;
+}
+
+}  // namespace
+
+std::vector<DeviceInfo> list_input_devices() {
+    const auto all = list_devices();
+    const int def = default_input_device();
+    std::vector<DeviceInfo> out;
+    for (const auto& d : all) {
+        if (d.max_inputs <= 0) continue;
+        if (d.index == def) {
+            out.push_back(d);
+            continue;
+        }
+        if (is_pseudo_device(d.name)) continue;
+        out.push_back(d);
+    }
+    return out;
+}
+
+std::vector<DeviceInfo> list_output_devices() {
+    const auto all = list_devices();
+    const int def = default_output_device();
+    std::vector<DeviceInfo> out;
+    for (const auto& d : all) {
+        if (d.max_outputs <= 0) continue;
+        if (d.index == def) {
+            out.push_back(d);
+            continue;
+        }
+        if (is_pseudo_device(d.name)) continue;
+        out.push_back(d);
+    }
+    return out;
+}
+
 int default_input_device() {
     const PaDeviceIndex i = Pa_GetDefaultInputDevice();
     return i == paNoDevice ? -1 : i;

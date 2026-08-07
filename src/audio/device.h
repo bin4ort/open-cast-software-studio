@@ -25,6 +25,11 @@ void pa_shutdown();
 const char* pa_last_error();
 
 std::vector<DeviceInfo> list_devices();
+// Filtered device lists for the GUI: only real audio inputs (or outputs),
+// excluding ALSA pseudo-devices (front, surround*, dmix, null, sysdefault,
+// pipewire, pulse). The system default device is always kept.
+std::vector<DeviceInfo> list_input_devices();
+std::vector<DeviceInfo> list_output_devices();
 int default_input_device();
 int default_output_device();
 int default_sample_rate();

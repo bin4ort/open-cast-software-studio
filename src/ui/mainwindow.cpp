@@ -28,6 +28,7 @@
 #include "audio/fileio.h"
 #include "processing/job.h"
 #include "ui/livepanel.h"
+#include "ui/voicepanel.h"
 #include "ui/waveform.h"
 
 namespace ocs::ui {
@@ -64,12 +65,6 @@ MainWindow::~MainWindow() {
     }
 }
 
-void MainWindow::populate_presets(QComboBox* combo) {
-    for (const auto& p : dsp::presets()) {
-        combo->addItem(QString::fromStdString(p.name), p.name.c_str());
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Process tab
 // ---------------------------------------------------------------------------
@@ -93,33 +88,14 @@ QWidget* MainWindow::build_process_tab() {
     file_form->addRow(QStringLiteral("Output:"), output_path_);
     layout->addWidget(file_group);
 
+    auto* voice_group = new QGroupBox(QStringLiteral("Voice"));
+    auto* voice_layout = new QVBoxLayout(voice_group);
+    voice_panel_ = new VoicePanel(false);
+    voice_layout->addWidget(voice_panel_);
+    layout->addWidget(voice_group);
+
     auto* opts_group = new QGroupBox(QStringLiteral("Options"));
     auto* opts_form = new QFormLayout(opts_group);
-
-    preset_combo_ = new QComboBox;
-    populate_presets(preset_combo_);
-    connect(preset_combo_, &QComboBox::currentIndexChanged, this,
-            [this] {
-                const int i = preset_combo_->currentIndex();
-                const auto& ps = dsp::presets();
-                if (i >= 0 && i < static_cast<int>(ps.size())) {
-                    pitch_spin_->setValue(ps[i].params.pitch_semitones);
-                    formant_spin_->setValue(ps[i].params.formant_semitones);
-                    denoise_check_->setChecked(ps[i].params.enable_denoise);
-                }
-            });
-    opts_form->addRow(QStringLiteral("Preset:"), preset_combo_);
-
-    pitch_spin_ = new QDoubleSpinBox;
-    pitch_spin_->setRange(-24.0, 24.0);
-    pitch_spin_->setValue(2.0);
-    pitch_spin_->setSuffix(QStringLiteral(" st"));
-    formant_spin_ = new QDoubleSpinBox;
-    formant_spin_->setRange(-24.0, 24.0);
-    formant_spin_->setValue(2.0);
-    formant_spin_->setSuffix(QStringLiteral(" st"));
-    opts_form->addRow(QStringLiteral("Pitch:"), pitch_spin_);
-    opts_form->addRow(QStringLiteral("Formants:"), formant_spin_);
 
     mode_combo_ = new QComboBox;
     mode_combo_->addItem(QStringLiteral("Global (shift all speech)"), "global");
@@ -181,9 +157,9 @@ void MainWindow::on_process() {
     opts.output = output_path_->text().isEmpty()
                       ? (QFileInfo(in).completeBaseName() + QStringLiteral(".anon.wav")).toStdString()
                       : output_path_->text().toStdString();
-    opts.shift.pitch_semitones = pitch_spin_->value();
-    opts.shift.formant_semitones = formant_spin_->value();
+    opts.shift = voice_panel_->params();
     opts.shift.enable_denoise = denoise_check_->isChecked();
+    opts.target_gender = voice_panel_->gender();
     opts.mode = mode_combo_->currentData().toString() == QStringLiteral("selective")
                     ? dsp::AnonMode::Selective
                     : dsp::AnonMode::Global;
@@ -250,13 +226,20 @@ QWidget* MainWindow::build_live_tab() {
 
     in_device_combo_ = new QComboBox;
     out_device_combo_ = new QComboBox;
-    const auto devices = audio::list_devices();
+    const auto inputs = audio::list_input_devices();
+    const auto outputs = audio::list_output_devices();
     const int din = audio::default_input_device();
     const int dout = audio::default_output_device();
-    for (const auto& d : devices) {
+    for (const auto& d : inputs) {
         const QString label = QString::number(d.index) + QStringLiteral("  ") +
-                              QString::fromStdString(d.name);
+                              QString::fromStdString(d.name) +
+                              (d.index == din ? QStringLiteral("  [default]") : QString());
         in_device_combo_->addItem(label, d.index);
+    }
+    for (const auto& d : outputs) {
+        const QString label = QString::number(d.index) + QStringLiteral("  ") +
+                              QString::fromStdString(d.name) +
+                              (d.index == dout ? QStringLiteral("  [default]") : QString());
         out_device_combo_->addItem(label, d.index);
     }
     if (din >= 0) in_device_combo_->setCurrentIndex(
@@ -267,30 +250,20 @@ QWidget* MainWindow::build_live_tab() {
     dev_form->addRow(QStringLiteral("Output (speaker):"), out_device_combo_);
     layout->addWidget(dev_group);
 
+    auto* voice_group = new QGroupBox(QStringLiteral("Voice"));
+    auto* voice_layout = new QVBoxLayout(voice_group);
+    live_voice_panel_ = new VoicePanel(true);
+    connect(live_voice_panel_, &VoicePanel::changed, this, [this] {
+        if (live_engine_ && live_engine_->running()) {
+            live_engine_->set_pitch_semitones(
+                live_voice_panel_->params().pitch_semitones);
+        }
+    });
+    voice_layout->addWidget(live_voice_panel_);
+    layout->addWidget(voice_group);
+
     auto* ctrl_group = new QGroupBox(QStringLiteral("Controls"));
     auto* ctrl_form = new QFormLayout(ctrl_group);
-
-    live_preset_combo_ = new QComboBox;
-    populate_presets(live_preset_combo_);
-    connect(live_preset_combo_, &QComboBox::currentIndexChanged, this,
-            [this] {
-                const int i = live_preset_combo_->currentIndex();
-                const auto& ps = dsp::presets();
-                if (i >= 0 && i < static_cast<int>(ps.size())) {
-                    live_pitch_spin_->setValue(ps[i].params.pitch_semitones);
-                }
-            });
-    ctrl_form->addRow(QStringLiteral("Preset:"), live_preset_combo_);
-
-    live_pitch_spin_ = new QDoubleSpinBox;
-    live_pitch_spin_->setRange(-24.0, 24.0);
-    live_pitch_spin_->setValue(2.0);
-    live_pitch_spin_->setSuffix(QStringLiteral(" st"));
-    connect(live_pitch_spin_, &QDoubleSpinBox::valueChanged, this,
-            [this](double v) {
-                if (live_engine_) live_engine_->set_pitch_semitones(v);
-            });
-    ctrl_form->addRow(QStringLiteral("Pitch:"), live_pitch_spin_);
 
     sample_rate_spin_ = new QSpinBox;
     sample_rate_spin_->setRange(8000, 192000);
@@ -330,7 +303,7 @@ void MainWindow::on_live_start_stop() {
     const int out_dev = out_device_combo_->currentData().toInt();
     const int rate = sample_rate_spin_->value();
 
-    live_engine_->set_pitch_semitones(live_pitch_spin_->value());
+    live_engine_->set_pitch_semitones(live_voice_panel_->params().pitch_semitones);
     live_engine_->set_mute_silence(mute_silence_check_->isChecked());
     live_engine_->set_dry(dry_check_->isChecked());
 

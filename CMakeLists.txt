@@ -38,6 +38,7 @@ add_library(ocs_core STATIC
   src/dsp/stft.cpp
   src/dsp/phase_vocoder.cpp
   src/dsp/formant.cpp
+  src/dsp/gender.cpp
   src/dsp/denoise.cpp
   src/dsp/vad.cpp
   src/dsp/pipeline.cpp
@@ -87,6 +88,7 @@ if(OCS_GUI)
       src/ui/mainwindow.cpp
       src/ui/waveform.cpp
       src/ui/livepanel.cpp
+      src/ui/voicepanel.cpp
     )
     target_include_directories(ocs_gui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(ocs_gui PUBLIC ocs_core Qt6::Widgets)
