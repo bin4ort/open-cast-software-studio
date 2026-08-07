@@ -3,8 +3,9 @@
 A C++20 voice transformation toolkit: change your voice to sound male, female,
 or like a character — live or on recordings — for voice acting, voice-over,
 streaming, or privacy. Includes VAD-gated pitch/formant shifting, gender
-conversion, transcript extraction & redaction, a virtual microphone for routing
-the anonymized voice to other apps, and a native Qt6 GUI.
+conversion, AI-assisted hybrid re-voicing, transcript extraction & redaction, a
+virtual microphone for routing the anonymized voice to other apps, and a native
+Qt6 GUI.
 
 **License: GPL-3.0-only** (see [LICENSE](LICENSE)).
 
@@ -13,12 +14,21 @@ the anonymized voice to other apps, and a native Qt6 GUI.
 - **Batch transformation** — shift the pitch and formants of all speech in an
   audio file (VAD-gated, so non-speech stays untouched).
 - **Gender voices** — Generic / Male / Female presets plus custom
-  pitch/formant control.
+  pitch/formant control, and an AI path that maps a natural-language voice
+  description ("young woman from London, slightly deep") onto the settings via
+  a local LLM (llama.cpp / Ollama) with offline keyword matching as fallback.
+- **Hybrid mode** — transcribes the recording, rewrites gendered
+  self-references toward the target gender (rules engine, or a local LLM when
+  available), globally shifts the voice, and re-voices the rewritten segments
+  with TTS in the target voice.
 - **Selective re-voicing** — when a transcription is available, only the
   segments containing names/PII are re-synthesized; the rest stays natural.
-- **Transcript extraction & redaction** — optional speech-to-text via an
-  external `whisper` binary, with regex + heuristic redaction of emails, phone
-  numbers, URLs and personal names.
+- **Transcript extraction & redaction** — optional speech-to-text via
+  `whisper-cpp`, with regex + heuristic redaction of emails, phone numbers,
+  URLs and personal names.
+- **Voice preview** — hear the configured voice speaking an example text via
+  TTS (espeak-ng) run through the same shift, or record a mic test.
+- **Mic test** — record raw and anonymized samples and replay the last one.
 - **Real-time live masking** — mask your own voice through the microphone
   while you talk, via the Qt6 GUI or the CLI.
 - **Virtual microphone** — route the anonymized voice to Discord, streaming,
@@ -28,7 +38,8 @@ the anonymized voice to other apps, and a native Qt6 GUI.
 - **Native Qt6 GUI** (`ocs_studio_gui`) and a full-featured CLI
   (`ocs_studio`).
 - **CLI install wizard** (`install/install.py`) with license acceptance,
-  dependency installation (auto or manual) and uninstall.
+  dependency installation (auto or manual), optional-feature tools and
+  uninstall.
 
 ## Requirements
 
@@ -36,10 +47,11 @@ the anonymized voice to other apps, and a native Qt6 GUI.
 - [PortAudio](http://portaudio.com/), [libsndfile](http://www.mega-nerd.com/libsndfile/),
   [libsamplerate](http://www.mega-nerd.com/SRC/)
 - Optional: `ffmpeg` (extra codecs, e.g. MP3/M4A), Qt6 Widgets (GUI),
-  a `whisper` binary (transcription)
+  `whisper-cpp` (transcription), `espeak-ng` (voice preview),
+  `onnxruntime` (experimental neural voice conversion, off by default)
 
 The GUI is built automatically when Qt6 is found; pass `-DOCS_GUI=OFF` to
-disable it.
+disable it. The install wizard offers to install the optional tools.
 
 ## Build
 
@@ -67,8 +79,10 @@ The wizard will:
    preview of the exact `sudo` commands) or **install them manually** — if you
    choose manual and the packages are not present yet, it tells you what's
    missing and exits cleanly (rerun the wizard after installing);
-4. build and install to `/usr/local` (system, sudo) or `~/.local` (user);
-5. optionally create a desktop menu entry for the GUI.
+4. offer to install optional feature tools (whisper-cpp, espeak-ng,
+   onnxruntime);
+5. build and install to `/usr/local` (system, sudo) or `~/.local` (user);
+6. optionally create a desktop menu entry for the GUI.
 
 ## CLI usage
 
@@ -78,6 +92,14 @@ ocs_studio process interview.wav -o anonymized.wav --preset strong
 
 # Formant-preserving pitch shift (natural voice, new pitch)
 ocs_studio process interview.wav --preset subtle
+
+# Gender conversion
+ocs_studio process interview.wav --gender female
+ocs_studio process interview.wav --gender male --pitch -5
+
+# Hybrid: global gender shift + re-voiced behavior phrases
+# (needs whisper-cpp + espeak-ng)
+ocs_studio process interview.wav --mode hybrid --gender male
 
 # Only re-voice the segments containing names (needs whisper + --transcribe)
 ocs_studio process interview.wav --mode selective --transcribe --pitch 4
@@ -114,11 +136,15 @@ ocs_studio gui
 
 `ocs_studio_gui` opens a window with three tabs:
 
-- **Process file** — pick an audio file, choose a preset or set pitch/formant
-  manually, select global vs selective mode, and process. Input and output
-  waveforms are shown.
-- **Live masking** — choose mic/speaker devices and pitch, then Start. Your
-  voice is masked in real time (optional VAD-based muting and dry run).
+- **Process file** — pick an audio file, set the target voice (gender presets,
+  DSP sliders, or an AI prompt), choose Global / Selective / Hybrid mode, and
+  process. Input and output waveforms are shown, plus a voice preview that
+  reads an example text in the configured voice.
+- **Live masking** — choose mic/speaker devices, set the voice, then Start.
+  Your voice is masked in real time (optional VAD-based muting and dry run).
+  Route the output to the speaker, a **virtual mic** (select it in Discord,
+  streaming, etc.), or both. A mic test records raw and anonymized samples and
+  lets you replay them.
 - **Transcript** — paste a transcript and redact names / emails / phones.
 
 ## Transcription
@@ -133,14 +159,20 @@ is available, commands that need it fail with a clear message.
 ```
 src/
 ├── main.cpp / cli.cpp        # CLI dispatch + subcommands
-├── audio/                    # PortAudio device mgmt, sndfile+ffmpeg file I/O, ring buffer
+├── audio/                    # PortAudio device mgmt, sndfile+ffmpeg I/O, ring
+│                             #   buffer, playback/record helpers, virtual mic
 ├── dsp/                      # FFT, STFT/OLA, phase vocoder (pitch shift),
-│                             #   cepstral formant shifter, spectral denoise, VAD, pipeline
+│                             #   cepstral formant shifter, gender profiles,
+│                             #   spectral denoise, VAD, pipeline
+├── ai/                       # LLM wrapper (llama.cpp/Ollama), gendered-phrase
+│                             #   rewriter, experimental neural VC interface
 ├── transcribe/               # whisper subprocess wrapper (JSON segments)
 ├── anonymize/                # regex + heuristic redactor
-├── processing/               # batch job orchestrator
+├── tts.cpp                   # espeak-ng text-to-speech wrapper
+├── processing/               # batch job orchestrator (global/selective/hybrid)
 ├── util/                     # tiny JSON parser (no external deps)
-└── ui/                       # Qt6 main window, waveform widget, live engine
+└── ui/                       # Qt6 main window, waveform, live engine,
+                              #   voice panel
 ```
 
 All DSP is implemented in-house on top of system libraries; there are no
@@ -155,4 +187,5 @@ ctest --test-dir build --output-on-failure
 ```
 
 Covers FFT/STFT round trips, pitch-shift accuracy (440 Hz -> expected),
-the streaming live shifter, and transcript redaction.
+the streaming live shifter, gender profiles, phrase rewriting and transcript
+redaction.

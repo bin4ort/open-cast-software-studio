@@ -135,6 +135,7 @@ int cmd_process(Argv& a) {
     std::string preset;
     std::string mode;
     std::string gender;
+    bool pitch_set = false, formant_set = false;
     bool write_transcript = false;
     bool transcribe = false;
     bool synthetic = false;
@@ -144,8 +145,8 @@ int cmd_process(Argv& a) {
         const char* arg = a.peek();
         if (std::strcmp(arg, "-o") == 0) { a.next(); opts.output = a.next(); }
         else if (std::strcmp(arg, "--preset") == 0) { a.next(); preset = a.next(); }
-        else if (std::strcmp(arg, "--pitch") == 0) { a.next(); shift.pitch_semitones = std::atof(a.next()); }
-        else if (std::strcmp(arg, "--formant") == 0) { a.next(); shift.formant_semitones = std::atof(a.next()); }
+        else if (std::strcmp(arg, "--pitch") == 0) { a.next(); shift.pitch_semitones = std::atof(a.next()); pitch_set = true; }
+        else if (std::strcmp(arg, "--formant") == 0) { a.next(); shift.formant_semitones = std::atof(a.next()); formant_set = true; }
         else if (std::strcmp(arg, "--mode") == 0) { a.next(); mode = a.next(); }
         else if (std::strcmp(arg, "--gender") == 0) { a.next(); gender = a.next(); }
         else if (std::strcmp(arg, "--transcribe") == 0) { a.next(); transcribe = true; }
@@ -169,6 +170,13 @@ int cmd_process(Argv& a) {
             return 1;
         }
         shift = p->params;
+    }
+    // A target gender applies its profile unless pitch/formant were explicit.
+    if (!gender.empty()) {
+        const dsp::GenderProfile prof =
+            dsp::profile_for(dsp::gender_from_name(gender.c_str()));
+        if (!pitch_set) shift.pitch_semitones = prof.pitch_semitones;
+        if (!formant_set) shift.formant_semitones = prof.formant_semitones;
     }
     opts.shift = shift;
     opts.mode = dsp::AnonMode::Global;
