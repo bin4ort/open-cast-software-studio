@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <cstddef>
 #include <vector>
 
-namespace va::dsp {
+namespace ocs::dsp {
 
 struct DenoiseParams {
     double noise_floor_sec = 0.5;  // leading audio used to estimate noise
@@ -18,4 +18,4 @@ struct DenoiseParams {
 std::vector<double> denoise(const std::vector<double>& input,
                             const DenoiseParams& params = {});
 
-}  // namespace va::dsp
+}  // namespace ocs::dsp

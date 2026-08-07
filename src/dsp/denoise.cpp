@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "dsp/denoise.h"
 
 #include <algorithm>
@@ -8,7 +8,7 @@
 
 #include "dsp/stft.h"
 
-namespace va::dsp {
+namespace ocs::dsp {
 
 std::vector<double> denoise(const std::vector<double>& input,
                             const DenoiseParams& params) {
@@ -94,4 +94,4 @@ std::vector<double> denoise(const std::vector<double>& input,
     return out;
 }
 
-}  // namespace va::dsp
+}  // namespace ocs::dsp

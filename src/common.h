@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <cstdint>
 #include <string>
 #include <vector>
 
-namespace va {
+namespace ocs {
 
 // Mono, float (-1.0..1.0) PCM sample.
 using Sample = float;
@@ -25,4 +25,4 @@ struct Segment {
     bool has_pii = false;  // flagged by the redactor
 };
 
-}  // namespace va
+}  // namespace ocs

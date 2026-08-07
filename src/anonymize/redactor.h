@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <string>
@@ -7,7 +7,7 @@
 
 #include "common.h"
 
-namespace va::redact {
+namespace ocs::redact {
 
 struct RedactOptions {
     bool redact_emails = true;
@@ -31,4 +31,4 @@ std::string redact_text(const std::string& text, const RedactOptions& opts,
 // seg.text to the redacted form. Returns the total number of flagged segments.
 size_t flag_segments(std::vector<Segment>& segments, const RedactOptions& opts);
 
-}  // namespace va::redact
+}  // namespace ocs::redact

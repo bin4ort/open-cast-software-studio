@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "audio/fileio.h"
 
 #include <sndfile.h>
@@ -11,18 +11,18 @@
 #include <string>
 #include <vector>
 
-#ifdef VA_HAVE_FFMPEG
+#ifdef OCS_HAVE_FFMPEG
 #include <unistd.h>
 #endif
 
-namespace va::audio {
+namespace ocs::audio {
 
 namespace {
 
-#ifdef VA_HAVE_FFMPEG
+#ifdef OCS_HAVE_FFMPEG
 std::string temp_wav_path(std::string& err) {
     const auto dir = std::filesystem::temp_directory_path();
-    const std::string tmpl = (dir / "va_XXXXXX.wav").string();
+    const std::string tmpl = (dir / "ocs_XXXXXX.wav").string();
     std::vector<char> buf(tmpl.begin(), tmpl.end());
     buf.push_back('\0');
     const int fd = mkstemps(buf.data(), 4);
@@ -48,7 +48,7 @@ bool sndfile_can_handle(const std::string& path) {
 }
 
 bool ffmpeg_available() {
-#ifdef VA_HAVE_FFMPEG
+#ifdef OCS_HAVE_FFMPEG
     FILE* p = popen("ffmpeg -version >/dev/null 2>&1", "r");
     if (!p) return false;
     const int rc = pclose(p);
@@ -67,7 +67,7 @@ AudioData read_file(const std::string& path, std::string* err) {
                 if (err) *err = e;
                 return {};
             }
-#ifdef VA_HAVE_FFMPEG
+#ifdef OCS_HAVE_FFMPEG
             if (system(("ffmpeg -y -v error -i \"" + path +
                         "\" -ac 1 -ar 48000 \"" + wav + "\"")
                            .c_str()) != 0) {
@@ -128,7 +128,7 @@ bool write_file(const std::string& path, const AudioData& data,
     else if (ext == ".aiff" || ext == ".aif") format = SF_FORMAT_AIFF | SF_FORMAT_PCM_16;
     else {
         if (ffmpeg_available()) {
-#ifdef VA_HAVE_FFMPEG
+#ifdef OCS_HAVE_FFMPEG
             std::string e;
             const std::string wav = temp_wav_path(e);
             if (wav.empty()) {
@@ -169,4 +169,4 @@ bool write_file(const std::string& path, const AudioData& data,
     return true;
 }
 
-}  // namespace va::audio
+}  // namespace ocs::audio

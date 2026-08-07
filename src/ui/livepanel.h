@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <atomic>
@@ -11,7 +11,7 @@
 
 #include "audio/device.h"
 
-namespace va::ui {
+namespace ocs::ui {
 
 // Encapsulates the real-time masking stream used by both the CLI and the GUI:
 // PortAudio duplex stream + a DSP worker thread (VAD -> pitch shift) shuttling
@@ -55,4 +55,4 @@ private:
     std::deque<float> display_;
 };
 
-}  // namespace va::ui
+}  // namespace ocs::ui

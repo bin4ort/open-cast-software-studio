@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "audio/ringbuf.h"
 
 #include <algorithm>
 #include <cstddef>
 
-namespace va::audio {
+namespace ocs::audio {
 
 RingBuffer::RingBuffer(size_t capacity) {
     size_t cap = 1;
@@ -65,4 +65,4 @@ void RingBuffer::reset() {
     tail_.store(0, std::memory_order_relaxed);
 }
 
-}  // namespace va::audio
+}  // namespace ocs::audio

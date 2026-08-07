@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "test_util.h"
 
 #include <string>
@@ -8,10 +8,10 @@
 #include "anonymize/redactor.h"
 #include "common.h"
 
-using va::redact::RedactOptions;
-using va::redact::redact_text;
-using va::redact::flag_segments;
-using va::redact::synthetic_name;
+using ocs::redact::RedactOptions;
+using ocs::redact::redact_text;
+using ocs::redact::flag_segments;
+using ocs::redact::synthetic_name;
 
 TEST(redact_email) {
     std::vector<std::string> names;
@@ -88,12 +88,12 @@ TEST(synthetic_names_deterministic) {
 }
 
 TEST(flag_segments_sets_pii) {
-    std::vector<va::Segment> segs;
-    va::Segment s1;
+    std::vector<ocs::Segment> segs;
+    ocs::Segment s1;
     s1.start = 0.0;
     s1.end = 1.0;
     s1.text = "Hello there";
-    va::Segment s2;
+    ocs::Segment s2;
     s2.start = 1.0;
     s2.end = 2.0;
     s2.text = "Mark told me the plan";

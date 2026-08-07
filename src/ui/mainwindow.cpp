@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "ui/mainwindow.h"
 
 #include <QCheckBox>
@@ -30,10 +30,10 @@
 #include "ui/livepanel.h"
 #include "ui/waveform.h"
 
-namespace va::ui {
+namespace ocs::ui {
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
-    setWindowTitle(QStringLiteral("voice_anonymizer"));
+    setWindowTitle(QStringLiteral("OCS Studio"));
     resize(920, 640);
 
     auto* tabs = new QTabWidget(this);
@@ -171,7 +171,7 @@ void MainWindow::on_process() {
 
     const QString in = input_path_->text();
     if (in.isEmpty()) {
-        QMessageBox::warning(this, QStringLiteral("voice_anonymizer"),
+        QMessageBox::warning(this, QStringLiteral("OCS Studio"),
                              QStringLiteral("Pick an input file first."));
         return;
     }
@@ -216,7 +216,7 @@ void MainWindow::on_process_poll() {
     if (!process_ok_) {
         status_label_->setText(QStringLiteral("Error: ") +
                                QString::fromStdString(process_message_));
-        QMessageBox::critical(this, QStringLiteral("voice_anonymizer"),
+        QMessageBox::critical(this, QStringLiteral("OCS Studio"),
                               QString::fromStdString(process_message_));
         return;
     }
@@ -336,7 +336,7 @@ void MainWindow::on_live_start_stop() {
 
     std::string err;
     if (!live_engine_->start(in_dev, out_dev, rate, 1024, err)) {
-        QMessageBox::critical(this, QStringLiteral("voice_anonymizer"),
+        QMessageBox::critical(this, QStringLiteral("OCS Studio"),
                               QString::fromStdString(err));
         return;
     }
@@ -394,4 +394,4 @@ void MainWindow::on_redact_transcript() {
     }
 }
 
-}  // namespace va::ui
+}  // namespace ocs::ui

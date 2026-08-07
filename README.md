@@ -1,24 +1,32 @@
-# voice_anonymizer
+# OCS Studio — Open Cast Software Studio
 
-A C++20 voice anonymization toolkit: disguises the speaker in audio files and
-in real time via VAD-gated pitch/formant shifting, and can redact personally
-identifiable information (names, emails, phones, URLs) from transcripts.
+A C++20 voice transformation toolkit: change your voice to sound male, female,
+or like a character — live or on recordings — for voice acting, voice-over,
+streaming, or privacy. Includes VAD-gated pitch/formant shifting, gender
+conversion, transcript extraction & redaction, a virtual microphone for routing
+the anonymized voice to other apps, and a native Qt6 GUI.
 
 **License: GPL-3.0-only** (see [LICENSE](LICENSE)).
 
 ## Features
 
-- **Batch anonymization** — shift the pitch and formants of all speech in an
+- **Batch transformation** — shift the pitch and formants of all speech in an
   audio file (VAD-gated, so non-speech stays untouched).
+- **Gender voices** — Generic / Male / Female presets plus custom
+  pitch/formant control.
 - **Selective re-voicing** — when a transcription is available, only the
   segments containing names/PII are re-synthesized; the rest stays natural.
 - **Transcript extraction & redaction** — optional speech-to-text via an
-  external `whisper` binary (`whisper.cpp` or `openai/whisper`), with regex +
-  heuristic redaction of emails, phone numbers, URLs and personal names.
+  external `whisper` binary, with regex + heuristic redaction of emails, phone
+  numbers, URLs and personal names.
 - **Real-time live masking** — mask your own voice through the microphone
-  while you talk, with a native Qt6 GUI or the CLI.
-- **Native Qt6 GUI** (`voice_anon_gui`) and a full-featured CLI
-  (`voice_anon`).
+  while you talk, via the Qt6 GUI or the CLI.
+- **Virtual microphone** — route the anonymized voice to Discord, streaming,
+  or recording apps as a selectable input device. If the app closes or
+  crashes, the virtual mic goes silent (like the mic died — no
+  deanonymization).
+- **Native Qt6 GUI** (`ocs_studio_gui`) and a full-featured CLI
+  (`ocs_studio`).
 - **CLI install wizard** (`install/install.py`) with license acceptance,
   dependency installation (auto or manual) and uninstall.
 
@@ -30,7 +38,7 @@ identifiable information (names, emails, phones, URLs) from transcripts.
 - Optional: `ffmpeg` (extra codecs, e.g. MP3/M4A), Qt6 Widgets (GUI),
   a `whisper` binary (transcription)
 
-The GUI is built automatically when Qt6 is found; pass `-DVA_GUI=OFF` to
+The GUI is built automatically when Qt6 is found; pass `-DOCS_GUI=OFF` to
 disable it.
 
 ## Build
@@ -38,7 +46,7 @@ disable it.
 ```sh
 cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
-# binaries: build/voice_anon, build/voice_anon_gui
+# binaries: build/ocs_studio, build/ocs_studio_gui
 # tests:    ctest --test-dir build
 ```
 
@@ -66,27 +74,27 @@ The wizard will:
 
 ```sh
 # Anonymize an audio file (default: shift all speech +2 st, formants follow)
-voice_anon process interview.wav -o anonymized.wav --preset strong
+ocs_studio process interview.wav -o anonymized.wav --preset strong
 
 # Formant-preserving pitch shift (natural voice, new pitch)
-voice_anon process interview.wav --preset subtle
+ocs_studio process interview.wav --preset subtle
 
 # Only re-voice the segments containing names (needs whisper + --transcribe)
-voice_anon process interview.wav --mode selective --transcribe --pitch 4
+ocs_studio process interview.wav --mode selective --transcribe --pitch 4
 
 # Real-time live masking (default mic/speaker)
-voice_anon live --pitch 5
-voice_anon live --preset chipmunk --mute-silence
+ocs_studio live --pitch 5
+ocs_studio live --preset chipmunk --mute-silence
 
 # Transcript extraction + redaction
-voice_anon transcribe interview.wav -o transcript.txt --redact
-voice_anon anonymize transcript.txt -o transcript_redacted.txt
+ocs_studio transcribe interview.wav -o transcript.txt --redact
+ocs_studio anonymize transcript.txt -o transcript_redacted.txt
 
 # Helpers
-voice_anon presets
-voice_anon devices
-voice_anon info
-voice_anon gui
+ocs_studio presets
+ocs_studio devices
+ocs_studio info
+ocs_studio gui
 ```
 
 ### Presets
@@ -104,7 +112,7 @@ voice_anon gui
 
 ## GUI usage
 
-`voice_anon_gui` opens a window with three tabs:
+`ocs_studio_gui` opens a window with three tabs:
 
 - **Process file** — pick an audio file, choose a preset or set pitch/formant
   manually, select global vs selective mode, and process. Input and output

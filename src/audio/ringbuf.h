@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <atomic>
 #include <cstddef>
 #include <vector>
 
-namespace va::audio {
+namespace ocs::audio {
 
 // Single-producer single-consumer lock-free ring buffer of float samples.
 class RingBuffer {
@@ -26,4 +26,4 @@ private:
     std::atomic<size_t> tail_{0};  // next read index
 };
 
-}  // namespace va::audio
+}  // namespace ocs::audio

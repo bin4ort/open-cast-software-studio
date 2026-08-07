@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "test_util.h"
 
 #include <vector>
@@ -7,8 +7,8 @@
 #include "dsp/fft.h"
 #include "dsp/stft.h"
 
-using va::dsp::STFT;
-using va::dsp::fft;
+using ocs::dsp::STFT;
+using ocs::dsp::fft;
 
 TEST(fft_round_trip) {
     const size_t n = 256;

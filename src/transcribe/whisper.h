@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <string>
@@ -7,7 +7,7 @@
 
 #include "common.h"
 
-namespace va::transcribe {
+namespace ocs::transcribe {
 
 struct WhisperConfig {
     std::string binary;    // whisper-cli / whisper / main, or a full path
@@ -23,4 +23,4 @@ std::string find_whisper_binary();
 bool transcribe(const std::string& input_path, const WhisperConfig& cfg,
                 std::vector<Segment>& segments, std::string& err);
 
-}  // namespace va::transcribe
+}  // namespace ocs::transcribe

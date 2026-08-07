@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "dsp/fft.h"
 
 #include <cmath>
 #include <cstddef>
 #include <utility>
 
-namespace va::dsp {
+namespace ocs::dsp {
 
 size_t next_pow2(size_t n) {
     size_t p = 1;
@@ -48,4 +48,4 @@ void fft(std::vector<std::complex<double>>& data, bool inverse) {
     }
 }
 
-}  // namespace va::dsp
+}  // namespace ocs::dsp

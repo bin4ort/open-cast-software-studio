@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <QMainWindow>
@@ -23,7 +23,7 @@ class QLabel;
 class QSpinBox;
 class QTimer;
 
-namespace va::ui {
+namespace ocs::ui {
 
 class Waveform;
 class LiveEngine;
@@ -91,4 +91,4 @@ private:
     QPlainTextEdit* transcript_output_ = nullptr;
 };
 
-}  // namespace va::ui
+}  // namespace ocs::ui

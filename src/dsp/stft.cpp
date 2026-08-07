@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "dsp/stft.h"
 
 #include <cmath>
 
 #include "dsp/fft.h"
 
-namespace va::dsp {
+namespace ocs::dsp {
 
 std::vector<double> hann_window(size_t n) {
     std::vector<double> w(n);
@@ -58,4 +58,4 @@ std::vector<double> STFT::overlap_norm_buffer(size_t total) const {
     return norm;
 }
 
-}  // namespace va::dsp
+}  // namespace ocs::dsp

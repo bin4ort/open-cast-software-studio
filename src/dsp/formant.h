@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <cstddef>
 #include <vector>
 
-namespace va::dsp {
+namespace ocs::dsp {
 
 // Shifts the spectral envelope (formants) by `factor` while leaving the
 // harmonic frequencies in place. `factor` > 1.0 raises formants, < 1.0
@@ -19,4 +19,4 @@ std::vector<double> formant_shift(const std::vector<double>& input,
                                   size_t nfft = 2048,
                                   size_t hop = 512);
 
-}  // namespace va::dsp
+}  // namespace ocs::dsp

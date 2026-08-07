@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "ui/waveform.h"
 
 #include <QPainter>
@@ -7,7 +7,7 @@
 
 #include <algorithm>
 
-namespace va::ui {
+namespace ocs::ui {
 
 Waveform::Waveform(QWidget* parent) : QWidget(parent) {
     setMinimumHeight(140);
@@ -64,4 +64,4 @@ void Waveform::paintEvent(QPaintEvent*) {
     }
 }
 
-}  // namespace va::ui
+}  // namespace ocs::ui

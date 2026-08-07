@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <complex>
@@ -9,7 +9,7 @@
 
 #include "dsp/stft.h"
 
-namespace va::dsp {
+namespace ocs::dsp {
 
 // Semitone delta -> frequency ratio (12 semitones = one octave).
 double semitones_to_ratio(double semitones);
@@ -86,4 +86,4 @@ private:
     double resample_ratio_ = 1.0;
 };
 
-}  // namespace va::dsp
+}  // namespace ocs::dsp

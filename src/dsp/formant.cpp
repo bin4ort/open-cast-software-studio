@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "dsp/formant.h"
 
 #include <algorithm>
@@ -9,7 +9,7 @@
 #include "dsp/fft.h"
 #include "dsp/stft.h"
 
-namespace va::dsp {
+namespace ocs::dsp {
 
 namespace {
 
@@ -111,4 +111,4 @@ std::vector<double> formant_shift(const std::vector<double>& input,
     return out;
 }
 
-}  // namespace va::dsp
+}  // namespace ocs::dsp

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "audio/device.h"
 
 #include <portaudio.h>
@@ -9,7 +9,7 @@
 #include <mutex>
 #include <string>
 
-namespace va::audio {
+namespace ocs::audio {
 
 namespace {
 std::atomic<int> g_pa_refs{0};
@@ -161,4 +161,4 @@ void close_live(LiveStream& ls) {
     }
 }
 
-}  // namespace va::audio
+}  // namespace ocs::audio

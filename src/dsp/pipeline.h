@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <string>
@@ -7,7 +7,7 @@
 
 #include "common.h"
 
-namespace va::dsp {
+namespace ocs::dsp {
 
 // Net shift expressed in semitones relative to the original recording.
 // `formant_semitones` controls where the formants land independently of
@@ -44,4 +44,4 @@ std::vector<double> process_selective(
     const std::vector<double>& input, int sample_rate,
     const std::vector<Segment>& segments, const ShiftParams& params);
 
-}  // namespace va::dsp
+}  // namespace ocs::dsp

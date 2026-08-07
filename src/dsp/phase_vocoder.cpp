@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "dsp/phase_vocoder.h"
 
 #include <algorithm>
@@ -13,7 +13,7 @@
 #include "dsp/fft.h"
 #include "dsp/stft.h"
 
-namespace va::dsp {
+namespace ocs::dsp {
 
 double semitones_to_ratio(double semitones) {
     return std::pow(2.0, semitones / 12.0);
@@ -332,4 +332,4 @@ size_t PitchShifter::process(const float* in, size_t n, float* out,
     return produced;
 }
 
-}  // namespace va::dsp
+}  // namespace ocs::dsp

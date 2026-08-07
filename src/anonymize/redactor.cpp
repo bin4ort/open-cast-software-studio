@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "anonymize/redactor.h"
 
 #include <cctype>
@@ -8,7 +8,7 @@
 #include <regex>
 #include <set>
 
-namespace va::redact {
+namespace ocs::redact {
 
 std::string synthetic_name(const std::string& original) {
     static const std::vector<std::string> kNames = {
@@ -145,4 +145,4 @@ size_t flag_segments(std::vector<Segment>& segments, const RedactOptions& opts) 
     return flagged;
 }
 
-}  // namespace va::redact
+}  // namespace ocs::redact

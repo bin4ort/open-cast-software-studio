@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <QWidget>
@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <vector>
 
-namespace va::ui {
+namespace ocs::ui {
 
 // Simple waveform renderer: draws a mono PCM buffer as a filled polyline.
 class Waveform : public QWidget {
@@ -29,4 +29,4 @@ private:
     int sample_rate_ = 48000;
 };
 
-}  // namespace va::ui
+}  // namespace ocs::ui

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "test_util.h"
 
 #include <complex>
@@ -8,9 +8,9 @@
 #include "dsp/fft.h"
 #include "dsp/phase_vocoder.h"
 
-using va::dsp::pitch_shift;
-using va::dsp::semitones_to_ratio;
-using va::dsp::time_stretch;
+using ocs::dsp::pitch_shift;
+using ocs::dsp::semitones_to_ratio;
+using ocs::dsp::time_stretch;
 
 namespace {
 
@@ -81,7 +81,7 @@ TEST(streaming_pitch_shifter_steady) {
         in[i] = 0.5f * std::sin(2.0f * 3.14159265f * 440.0f *
                                 static_cast<float>(i) / static_cast<float>(sr));
     }
-    va::dsp::PitchShifter shifter(2048, 4, semitones_to_ratio(4.0));
+    ocs::dsp::PitchShifter shifter(2048, 4, semitones_to_ratio(4.0));
     size_t produced = 0;
     // Stream in 512-sample chunks like the live path does.
     for (size_t off = 0; off < n; off += chunk) {

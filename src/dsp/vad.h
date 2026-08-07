@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <cstddef>
 #include <utility>
 #include <vector>
 
-namespace va::dsp {
+namespace ocs::dsp {
 
 struct VADParams {
     double threshold = 0.015;   // absolute RMS gate (0..1)
@@ -45,4 +45,4 @@ private:
     size_t hangover_count_ = 0;
 };
 
-}  // namespace va::dsp
+}  // namespace ocs::dsp

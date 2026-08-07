@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
-project(voice_anonymizer
-        VERSION 0.1.0
-        DESCRIPTION "Voice anonymization toolkit: pitch/formant shifting, transcript redaction"
-        HOMEPAGE_URL "https://example.invalid/voice_anonymizer"
+project(ocs_studio
+        VERSION 0.2.0
+        DESCRIPTION "Open Cast Software Studio: voice transformation, gender conversion, virtual mic"
+        HOMEPAGE_URL "https://github.com/bin4ort/open-cast-software-studio"
         LANGUAGES CXX)
 
-option(VA_GUI   "Build the Qt6 native GUI" ON)
-option(VA_TESTS "Build and register unit tests" ON)
+option(OCS_GUI   "Build the Qt6 native GUI" ON)
+option(OCS_TESTS "Build and register unit tests" ON)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -28,7 +28,7 @@ pkg_check_modules(SAMPLERATE REQUIRED IMPORTED_TARGET samplerate)
 # ---------------------------------------------------------------------------
 # Core library (CLI + GUI both link this)
 # ---------------------------------------------------------------------------
-add_library(va_core STATIC
+add_library(ocs_core STATIC
   src/cli.cpp
   src/util/json.cpp
   src/audio/device.cpp
@@ -46,14 +46,14 @@ add_library(va_core STATIC
   src/processing/job.cpp
 )
 
-target_include_directories(va_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_compile_definitions(va_core PUBLIC
-  VA_VERSION="${PROJECT_VERSION}"
-  VA_PROJECT_NAME="${PROJECT_NAME}"
+target_include_directories(ocs_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_definitions(ocs_core PUBLIC
+  OCS_VERSION="${PROJECT_VERSION}"
+  OCS_PROJECT_NAME="${PROJECT_NAME}"
 )
-target_compile_options(va_core PRIVATE -Wall -Wextra)
+target_compile_options(ocs_core PRIVATE -Wall -Wextra)
 
-target_link_libraries(va_core PUBLIC
+target_link_libraries(ocs_core PUBLIC
   PkgConfig::PORTAUDIO
   PkgConfig::SNDFILE
   PkgConfig::SAMPLERATE
@@ -62,17 +62,17 @@ target_link_libraries(va_core PUBLIC
 if(NOT CMAKE_CROSSCOMPILING)
   find_program(FFMPEG_EXECUTABLE ffmpeg)
   if(FFMPEG_EXECUTABLE)
-    target_compile_definitions(va_core PRIVATE VA_HAVE_FFMPEG=1)
+    target_compile_definitions(ocs_core PRIVATE OCS_HAVE_FFMPEG=1)
   endif()
 endif()
 
 # ---------------------------------------------------------------------------
 # CLI executable
 # ---------------------------------------------------------------------------
-add_executable(voice_anon src/main.cpp)
-target_link_libraries(voice_anon PRIVATE va_core)
-set_target_properties(voice_anon PROPERTIES
-  OUTPUT_NAME voice_anon
+add_executable(ocs_studio src/main.cpp)
+target_link_libraries(ocs_studio PRIVATE ocs_core)
+set_target_properties(ocs_studio PROPERTIES
+  OUTPUT_NAME ocs_studio
   VERSION ${PROJECT_VERSION}
   SOVERSION 0
 )
@@ -80,21 +80,21 @@ set_target_properties(voice_anon PROPERTIES
 # ---------------------------------------------------------------------------
 # Qt6 GUI
 # ---------------------------------------------------------------------------
-if(VA_GUI)
+if(OCS_GUI)
   find_package(Qt6 QUIET COMPONENTS Widgets)
   if(Qt6_FOUND)
-    add_library(va_gui STATIC
+    add_library(ocs_gui STATIC
       src/ui/mainwindow.cpp
       src/ui/waveform.cpp
       src/ui/livepanel.cpp
     )
-    target_include_directories(va_gui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    target_link_libraries(va_gui PUBLIC va_core Qt6::Widgets)
-    set_target_properties(va_gui PROPERTIES AUTOMOC ON)
+    target_include_directories(ocs_gui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(ocs_gui PUBLIC ocs_core Qt6::Widgets)
+    set_target_properties(ocs_gui PROPERTIES AUTOMOC ON)
 
-    add_executable(voice_anon_gui src/ui/gui_main.cpp)
-    target_link_libraries(voice_anon_gui PRIVATE va_gui)
-    set_target_properties(voice_anon_gui PROPERTIES OUTPUT_NAME voice_anon_gui)
+    add_executable(ocs_studio_gui src/ui/gui_main.cpp)
+    target_link_libraries(ocs_studio_gui PRIVATE ocs_gui)
+    set_target_properties(ocs_studio_gui PROPERTIES OUTPUT_NAME ocs_studio_gui)
   else()
     message(WARNING "Qt6 Widgets not found - building CLI only. Install qt6-base-dev/qt6-base to enable the GUI.")
   endif()
@@ -103,17 +103,17 @@ endif()
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-if(VA_TESTS)
+if(OCS_TESTS)
   include(CTest)
   if(BUILD_TESTING)
     # test_main.cpp #includes the individual *_test.cpp files (single TU).
-    add_executable(va_tests
+    add_executable(ocs_tests
       tests/test_main.cpp
     )
-    target_include_directories(va_tests PRIVATE tests)
-    target_link_libraries(va_tests PRIVATE va_core)
-    target_compile_options(va_tests PRIVATE -Wall -Wextra)
-    add_test(NAME va_tests COMMAND va_tests)
+    target_include_directories(ocs_tests PRIVATE tests)
+    target_link_libraries(ocs_tests PRIVATE ocs_core)
+    target_compile_options(ocs_tests PRIVATE -Wall -Wextra)
+    add_test(NAME ocs_tests COMMAND ocs_tests)
   endif()
 endif()
 
@@ -121,9 +121,9 @@ endif()
 # Install rules
 # ---------------------------------------------------------------------------
 include(GNUInstallDirs)
-install(TARGETS voice_anon
+install(TARGETS ocs_studio
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-if(TARGET voice_anon_gui)
-  install(TARGETS voice_anon_gui
+if(TARGET ocs_studio_gui)
+  install(TARGETS ocs_studio_gui
           RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()

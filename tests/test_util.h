@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <cmath>
@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace va_test {
+namespace ocs_test {
 
 struct TestCase {
     const char* name;
@@ -38,18 +38,18 @@ inline void report(bool ok, const char* file, int line, const std::string& msg) 
     }
 }
 
-}  // namespace va_test
+}  // namespace ocs_test
 
 #define TEST(name)                                                           \
     static void test_##name();                                               \
-    static va_test::Reg reg_##name(#name, test_##name);                      \
+    static ocs_test::Reg reg_##name(#name, test_##name);                      \
     static void test_##name()
 
 #define CHECK(cond) \
-    va_test::report((cond), __FILE__, __LINE__, std::string(#cond))
+    ocs_test::report((cond), __FILE__, __LINE__, std::string(#cond))
 
 #define CHECK_NEAR(a, b, eps)                                                \
-    va_test::report((std::fabs(static_cast<double>(a) - static_cast<double>(b)) <= \
+    ocs_test::report((std::fabs(static_cast<double>(a) - static_cast<double>(b)) <= \
                      (eps)),                                                  \
                     __FILE__, __LINE__,                                       \
                     std::string(#a " ~= " #b))

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-# Copyright (C) 2026 voice_anonymizer contributors
+# Copyright (C) 2026 Open Cast Software Studio contributors
 """
-voice_anonymizer CLI install wizard.
+OCS Studio (Open Cast Software Studio) CLI install wizard.
 
 Interactive installer that:
   1. Shows and requires acceptance of the GPL-3.0 license.
@@ -25,10 +25,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-PROJECT = "voice_anonymizer"
-VERSION = "0.1.0"
-CLI_BIN = "voice_anon"
-GUI_BIN = "voice_anon_gui"
+PROJECT = "ocs_studio"
+VERSION = "0.2.0"
+CLI_BIN = "ocs_studio"
+GUI_BIN = "ocs_studio_gui"
 
 GPL_SUMMARY = f"""\
 {PROJECT} {VERSION} is free software, licensed under the GNU General Public
@@ -393,7 +393,7 @@ def main() -> None:
         step_uninstall()
         return
 
-    say(f"{PROJECT} {VERSION} - CLI install wizard (GPL-3.0-only)")
+    say(f"OCS Studio (Open Cast Software Studio) {VERSION} - CLI install wizard (GPL-3.0-only)")
     say("=" * 60)
     say()
     step_license()

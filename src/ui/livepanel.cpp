@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "ui/livepanel.h"
 
 #include <algorithm>
@@ -9,7 +9,7 @@
 #include "dsp/phase_vocoder.h"
 #include "dsp/vad.h"
 
-namespace va::ui {
+namespace ocs::ui {
 
 LiveEngine::~LiveEngine() {
     stop();
@@ -100,4 +100,4 @@ void LiveEngine::worker_loop() {
     }
 }
 
-}  // namespace va::ui
+}  // namespace ocs::ui

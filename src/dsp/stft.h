@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <complex>
 #include <cstddef>
 #include <vector>
 
-namespace va::dsp {
+namespace ocs::dsp {
 
 // Static Hann window helper.
 std::vector<double> hann_window(size_t n);
@@ -50,4 +50,4 @@ private:
     std::vector<std::complex<double>> scratch_;
 };
 
-}  // namespace va::dsp
+}  // namespace ocs::dsp

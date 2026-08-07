@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <cstddef>
@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace va::util {
+namespace ocs::util {
 
 // Minimal recursive-descent JSON parser (no external deps). Enough for the
 // whisper transcript JSON and small config files.
@@ -64,4 +64,4 @@ struct JsonError : std::runtime_error {
     explicit JsonError(const std::string& m) : std::runtime_error(m) {}
 };
 
-}  // namespace va::util
+}  // namespace ocs::util

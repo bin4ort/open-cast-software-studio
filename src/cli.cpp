@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "cli.h"
 
 #include <atomic>
@@ -21,15 +21,15 @@
 #include "processing/job.h"
 #include "transcribe/whisper.h"
 
-namespace va::cli {
+namespace ocs::cli {
 
 namespace {
 
 void print_version() {
-    std::printf("voice_anon %s (GPL-3.0-only)\n", VA_VERSION);
+    std::printf("ocs_studio %s (GPL-3.0-only)\n", OCS_VERSION);
     std::printf("Built with g++ %d.%d.%d\n", __GNUC__, __GNUC_MINOR__,
                 __GNUC_PATCHLEVEL__);
-#ifdef VA_HAVE_FFMPEG
+#ifdef OCS_HAVE_FFMPEG
     std::printf("ffmpeg subprocess: enabled\n");
 #else
     std::printf("ffmpeg subprocess: unavailable (recompile with ffmpeg found)\n");
@@ -43,17 +43,17 @@ void print_version() {
 
 void print_help() {
     std::printf(
-        "voice_anon %s - voice anonymization toolkit (GPL-3.0-only)\n\n"
+        "ocs_studio %s - voice anonymization toolkit (GPL-3.0-only)\n\n"
         "Usage:\n"
-        "  voice_anon process <input> [options]   Anonymize an audio file\n"
-        "  voice_anon live [options]              Real-time microphone masking\n"
-        "  voice_anon transcribe <input> [opts]   Extract a transcript\n"
-        "  voice_anon anonymize <transcript> [o]  Redact a transcript file\n"
-        "  voice_anon presets                     List shift presets\n"
-        "  voice_anon devices                     List audio devices\n"
-        "  voice_anon info                        Show build/runtime info\n"
-        "  voice_anon gui                         Launch the Qt GUI (if built)\n"
-        "  voice_anon help                        Show this help\n"
+        "  ocs_studio process <input> [options]   Anonymize an audio file\n"
+        "  ocs_studio live [options]              Real-time microphone masking\n"
+        "  ocs_studio transcribe <input> [opts]   Extract a transcript\n"
+        "  ocs_studio anonymize <transcript> [o]  Redact a transcript file\n"
+        "  ocs_studio presets                     List shift presets\n"
+        "  ocs_studio devices                     List audio devices\n"
+        "  ocs_studio info                        Show build/runtime info\n"
+        "  ocs_studio gui                         Launch the Qt GUI (if built)\n"
+        "  ocs_studio help                        Show this help\n"
         "\n"
         "process options:\n"
         "  -o <path>              Output file (default: <input>.anon.ext)\n"
@@ -91,7 +91,7 @@ void print_help() {
         "  -o <path>              Output file (default <input>.redacted.txt)\n"
         "  --synthetic            Use synthetic replacement names\n"
         "  --replacement <str>    Redaction token\n",
-        VA_VERSION);
+        OCS_VERSION);
 }
 
 // ---------------------------------------------------------------------------
@@ -468,7 +468,7 @@ int cmd_devices() {
 }
 
 int cmd_gui() {
-#ifdef VA_HAS_GUI
+#ifdef OCS_HAS_GUI
     extern int gui_main(int argc, char** argv);
     extern int gui_argc;
     extern char** gui_argv;
@@ -511,4 +511,4 @@ int run(int argc, char** argv) {
     return 1;
 }
 
-}  // namespace va::cli
+}  // namespace ocs::cli

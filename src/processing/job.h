@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <string>
@@ -8,7 +8,7 @@
 #include "common.h"
 #include "dsp/pipeline.h"
 
-namespace va::job {
+namespace ocs::job {
 
 struct JobOptions {
     std::string input;
@@ -37,4 +37,4 @@ struct JobResult {
 //   decode -> (transcribe -> redact) -> shift -> encode
 JobResult run(const JobOptions& opts);
 
-}  // namespace va::job
+}  // namespace ocs::job

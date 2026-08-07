@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "transcribe/whisper.h"
 
 #include <cstdlib>
@@ -11,7 +11,7 @@
 
 #include "util/json.h"
 
-namespace va::transcribe {
+namespace ocs::transcribe {
 
 namespace {
 
@@ -55,7 +55,7 @@ bool transcribe(const std::string& input_path, const WhisperConfig& cfg,
 
     const auto base = std::filesystem::path(input_path).filename().string();
     const auto outbase =
-        (std::filesystem::temp_directory_path() / ("va_whisper_" + base)).string();
+        (std::filesystem::temp_directory_path() / ("ocs_whisper_" + base)).string();
     const auto outjson = outbase + ".json";
 
     const std::filesystem::path bin_path(binary);
@@ -132,4 +132,4 @@ bool transcribe(const std::string& input_path, const WhisperConfig& cfg,
     return !segments.empty();
 }
 
-}  // namespace va::transcribe
+}  // namespace ocs::transcribe

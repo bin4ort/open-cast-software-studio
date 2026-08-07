@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "processing/job.h"
 
 #include <cstdio>
@@ -10,7 +10,7 @@
 #include "dsp/pipeline.h"
 #include "transcribe/whisper.h"
 
-namespace va::job {
+namespace ocs::job {
 
 namespace {
 
@@ -106,4 +106,4 @@ JobResult run(const JobOptions& opts) {
     return res;
 }
 
-}  // namespace va::job
+}  // namespace ocs::job

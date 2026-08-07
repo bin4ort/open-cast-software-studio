@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #pragma once
 
 #include <atomic>
@@ -9,7 +9,7 @@
 
 #include "audio/ringbuf.h"
 
-namespace va::audio {
+namespace ocs::audio {
 
 struct DeviceInfo {
     int index = -1;
@@ -56,4 +56,4 @@ bool start_live(LiveStream& ls);
 bool stop_live(LiveStream& ls);
 void close_live(LiveStream& ls);
 
-}  // namespace va::audio
+}  // namespace ocs::audio

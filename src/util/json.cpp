@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "util/json.h"
 
 #include <cctype>
@@ -8,7 +8,7 @@
 #include <fstream>
 #include <sstream>
 
-namespace va::util {
+namespace ocs::util {
 
 Json::Json(bool b) : type_(Type::Bool), bool_(b) {}
 Json::Json(double n) : type_(Type::Number), num_(n) {}
@@ -270,4 +270,4 @@ Json Json::parse_file(const std::string& path) {
     return parse(ss.str());
 }
 
-}  // namespace va::util
+}  // namespace ocs::util

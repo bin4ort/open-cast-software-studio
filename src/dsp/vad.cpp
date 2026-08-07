@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
-// Copyright (C) 2026 voice_anonymizer contributors
+// Copyright (C) 2026 Open Cast Software Studio contributors
 #include "dsp/vad.h"
 
 #include <algorithm>
 #include <cmath>
 
-namespace va::dsp {
+namespace ocs::dsp {
 
 namespace {
 
@@ -123,4 +123,4 @@ bool StreamVAD::update(const float* samples, size_t n) {
     return active_;
 }
 
-}  // namespace va::dsp
+}  // namespace ocs::dsp
