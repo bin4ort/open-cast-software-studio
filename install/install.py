@@ -179,6 +179,25 @@ DEPS = [
     ),
 ]
 
+# Optional, feature-enabling dependencies.
+OPTIONAL_DEPS = [
+    Dep(
+        "whisper-cpp (transcription)",
+        lambda: cmd_exists("whisper-cli") or cmd_exists("whisper") or cmd_exists("main"),
+        {"apt": "whisper-cpp", "dnf": "whisper-cpp", "pacman": "whisper-cpp", "zypper": "whisper-cpp"},
+    ),
+    Dep(
+        "espeak-ng (voice preview TTS)",
+        lambda: cmd_exists("espeak-ng"),
+        {"apt": "espeak-ng", "dnf": "espeak-ng", "pacman": "espeak-ng", "zypper": "espeak-ng"},
+    ),
+    Dep(
+        "onnxruntime-cpu (experimental AI voice conversion)",
+        lambda: pkg_exists("onnxruntime"),
+        {"apt": "libonnxruntime-dev", "dnf": "onnxruntime", "pacman": "onnxruntime-cpu", "zypper": "onnxruntime"},
+    ),
+]
+
 
 def detect_pmgr() -> str | None:
     if cmd_exists("apt-get"):
@@ -263,7 +282,20 @@ def step_dependencies() -> None:
         say("Nothing to install.")
         return
     pkgs = sorted(set(pkgs))
+    install_pkgs(pkgs, pmgr)
 
+    ok3, missing3 = check_all()
+    if missing3:
+        say()
+        say("Some dependencies could not be verified after install:")
+        for d in missing3:
+            say(f"  - {d.name}")
+        if not confirm("Continue anyway?"):
+            sys.exit(1)
+    say()
+
+
+def install_pkgs(pkgs: list[str], pmgr: str) -> None:
     if pmgr == "apt":
         update = sudo_prefix() + ["apt-get", "update"]
         install = sudo_prefix() + ["apt-get", "install", "-y"] + pkgs
@@ -287,15 +319,32 @@ def step_dependencies() -> None:
     if update:
         run(update)
     run(install)
+    say()
 
-    ok3, missing3 = check_all()
-    if missing3:
+
+def step_optional_dependencies() -> None:
+    missing = [d for d in OPTIONAL_DEPS if not d.ok()]
+    if not missing:
+        return
+    say("Optional features are missing their runtime tools:")
+    for d in missing:
+        say(f"  - {d.name}")
+    say()
+    pmgr = detect_pmgr()
+    if not pmgr:
+        say("Install them manually if you want the corresponding features "
+            "(transcription, voice preview, experimental AI voice conversion).")
         say()
-        say("Some dependencies could not be verified after install:")
-        for d in missing3:
-            say(f"  - {d.name}")
-        if not confirm("Continue anyway?"):
-            sys.exit(1)
+        return
+    if not confirm("Install the optional tools now (sudo)?", default=False):
+        say("Skipping optional tools. The app will build without them.")
+        say()
+        return
+    pkgs = sorted({
+        p for d in missing for p in d.packages.get(pmgr, "").split() if p
+    })
+    if pkgs:
+        install_pkgs(pkgs, pmgr)
     say()
 
 
@@ -398,6 +447,7 @@ def main() -> None:
     say()
     step_license()
     step_dependencies()
+    step_optional_dependencies()
     build_dir = step_build()
     step_install(build_dir)
 
