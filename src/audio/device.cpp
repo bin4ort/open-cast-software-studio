@@ -267,4 +267,62 @@ void play_buffer(const AudioData& data, int out_device, std::string* err) {
     Pa_CloseStream(stream);
 }
 
+AudioData record_seconds(double seconds, int in_device, int sample_rate,
+                         std::string* err) {
+    if (in_device < 0 || seconds <= 0) {
+        if (err) *err = "invalid recording parameters";
+        return {};
+    }
+
+    PaStreamParameters in_params{};
+    in_params.device = in_device;
+    in_params.channelCount = 1;
+    in_params.sampleFormat = paFloat32;
+    in_params.suggestedLatency =
+        Pa_GetDeviceInfo(in_device)
+            ? Pa_GetDeviceInfo(in_device)->defaultHighInputLatency
+            : 0.1;
+
+    PaStream* stream = nullptr;
+    PaError e = Pa_OpenStream(
+        &stream, &in_params, nullptr, sample_rate,
+        paFramesPerBufferUnspecified, paClipOff, nullptr, nullptr);
+    if (e != paNoError) {
+        if (err) *err = Pa_GetErrorText(e);
+        return {};
+    }
+
+    AudioData out;
+    out.sample_rate = sample_rate;
+    const size_t total = static_cast<size_t>(seconds * sample_rate);
+    out.samples.reserve(total);
+
+    if (Pa_StartStream(stream) != paNoError) {
+        Pa_CloseStream(stream);
+        if (err) *err = "could not start recording stream";
+        return {};
+    }
+
+    const size_t chunk = 4096;
+    std::vector<float> buf(chunk);
+    size_t got = 0;
+    while (got < total) {
+        const unsigned long n = static_cast<unsigned long>(
+            std::min(chunk, total - got));
+        e = Pa_ReadStream(stream, buf.data(), n);
+        if (e != paNoError) {
+            if (err) *err = Pa_GetErrorText(e);
+            break;
+        }
+        for (unsigned long i = 0; i < n; ++i) {
+            out.samples.push_back(static_cast<double>(buf[i]));
+        }
+        got += n;
+    }
+
+    Pa_StopStream(stream);
+    Pa_CloseStream(stream);
+    return out;
+}
+
 }  // namespace ocs::audio

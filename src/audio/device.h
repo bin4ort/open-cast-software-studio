@@ -66,4 +66,9 @@ void close_live(LiveStream& ls);
 // worker thread). Sets *err on failure.
 void play_buffer(const AudioData& data, int out_device, std::string* err = nullptr);
 
+// Records `seconds` of mono audio from `in_device` (blocking; call on a
+// worker thread). Returns empty AudioData and sets *err on failure.
+AudioData record_seconds(double seconds, int in_device, int sample_rate,
+                         std::string* err = nullptr);
+
 }  // namespace ocs::audio

@@ -45,6 +45,10 @@ private slots:
     void on_live_poll();
     void on_redact_transcript();
     void on_preview_text();
+    void on_record_raw();
+    void on_record_anon();
+    void on_replay();
+    void record_test(bool anonymized);
 
 private:
     QWidget* build_process_tab();
@@ -89,6 +93,17 @@ private:
     Waveform* live_waveform_ = nullptr;
     QTimer* live_poll_timer_ = nullptr;
     LiveEngine* live_engine_ = nullptr;
+
+    // Mic test (P3).
+    QSpinBox* test_seconds_spin_ = nullptr;
+    QPushButton* record_raw_button_ = nullptr;
+    QPushButton* record_anon_button_ = nullptr;
+    QPushButton* replay_button_ = nullptr;
+    QLabel* mic_test_status_ = nullptr;
+    AudioData mic_test_raw_;
+    AudioData mic_test_anon_;
+    AudioData mic_test_last_;
+    std::atomic<bool> recording_{false};
 
     // Transcript tab.
     QPlainTextEdit* transcript_edit_ = nullptr;

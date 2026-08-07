@@ -293,6 +293,84 @@ void MainWindow::on_preview_text() {
 }
 
 // ---------------------------------------------------------------------------
+// Mic test
+// ---------------------------------------------------------------------------
+void MainWindow::on_record_raw() { record_test(false); }
+void MainWindow::on_record_anon() { record_test(true); }
+
+void MainWindow::record_test(bool anonymized) {
+    if (recording_.load()) return;
+    const int in_dev = in_device_combo_->currentData().toInt();
+    const int rate = sample_rate_spin_->value();
+    if (in_dev < 0) {
+        mic_test_status_->setText(QStringLiteral("No input device selected."));
+        return;
+    }
+    recording_.store(true);
+    record_raw_button_->setEnabled(false);
+    record_anon_button_->setEnabled(false);
+    mic_test_status_->setText(
+        QStringLiteral("Recording %1s...").arg(test_seconds_spin_->value()));
+
+    std::thread([this, in_dev, rate, anonymized] {
+        std::string err;
+        const AudioData rec =
+            audio::record_seconds(test_seconds_spin_->value(), in_dev, rate, &err);
+        if (anonymized && !rec.samples.empty()) {
+            std::vector<double> in_d(rec.samples.begin(), rec.samples.end());
+            dsp::ShiftParams p = live_voice_panel_->params();
+            p.formant_semitones = 0.0;  // live path is pitch-only
+            const std::vector<double> shifted =
+                dsp::shift_audio(in_d, rec.sample_rate, p);
+            mic_test_anon_.sample_rate = rec.sample_rate;
+            mic_test_anon_.samples.clear();
+            mic_test_anon_.samples.reserve(shifted.size());
+            for (double v : shifted) {
+                mic_test_anon_.samples.push_back(static_cast<Sample>(v));
+            }
+            mic_test_last_ = mic_test_anon_;
+        } else {
+            mic_test_raw_ = rec;
+            mic_test_last_ = rec;
+        }
+        QString msg;
+        if (rec.samples.empty()) {
+            msg = QString::fromStdString(err.empty() ? "Recording failed" : err);
+        } else {
+            msg = anonymized ? QStringLiteral("Recorded anonymized test.")
+                             : QStringLiteral("Recorded raw test.");
+        }
+        QMetaObject::invokeMethod(this, [this, msg] {
+            recording_.store(false);
+            record_raw_button_->setEnabled(true);
+            record_anon_button_->setEnabled(true);
+            replay_button_->setEnabled(!mic_test_last_.samples.empty());
+            mic_test_status_->setText(msg);
+        }, Qt::QueuedConnection);
+    }).detach();
+}
+
+void MainWindow::on_replay() {
+    if (mic_test_last_.samples.empty()) return;
+    const int out_dev = audio::default_output_device();
+    if (out_dev < 0) {
+        mic_test_status_->setText(QStringLiteral("No output device."));
+        return;
+    }
+    replay_button_->setEnabled(false);
+    mic_test_status_->setText(QStringLiteral("Replaying..."));
+    std::thread([this, out_dev] {
+        std::string err;
+        audio::play_buffer(mic_test_last_, out_dev, &err);
+        QMetaObject::invokeMethod(this, [this, err] {
+            replay_button_->setEnabled(true);
+            mic_test_status_->setText(err.empty() ? QStringLiteral("Replay done.")
+                                                  : QString::fromStdString(err));
+        }, Qt::QueuedConnection);
+    }).detach();
+}
+
+// ---------------------------------------------------------------------------
 // Live tab
 // ---------------------------------------------------------------------------
 QWidget* MainWindow::build_live_tab() {
@@ -354,6 +432,32 @@ QWidget* MainWindow::build_live_tab() {
     ctrl_form->addRow(QStringLiteral(""), mute_silence_check_);
     ctrl_form->addRow(QStringLiteral(""), dry_check_);
     layout->addWidget(ctrl_group);
+
+    auto* test_group = new QGroupBox(QStringLiteral("Mic test"));
+    auto* test_form = new QFormLayout(test_group);
+    test_seconds_spin_ = new QSpinBox;
+    test_seconds_spin_->setRange(1, 10);
+    test_seconds_spin_->setValue(3);
+    test_seconds_spin_->setSuffix(QStringLiteral(" s"));
+    test_form->addRow(QStringLiteral("Duration:"), test_seconds_spin_);
+
+    auto* test_row = new QHBoxLayout;
+    record_raw_button_ = new QPushButton(QStringLiteral("Record raw"));
+    connect(record_raw_button_, &QPushButton::clicked, this, &MainWindow::on_record_raw);
+    record_anon_button_ = new QPushButton(QStringLiteral("Record anonymized"));
+    connect(record_anon_button_, &QPushButton::clicked, this, &MainWindow::on_record_anon);
+    replay_button_ = new QPushButton(QStringLiteral("Replay last"));
+    connect(replay_button_, &QPushButton::clicked, this, &MainWindow::on_replay);
+    replay_button_->setEnabled(false);
+    test_row->addWidget(record_raw_button_);
+    test_row->addWidget(record_anon_button_);
+    test_row->addWidget(replay_button_);
+    test_form->addRow(QStringLiteral(""), test_row);
+
+    mic_test_status_ = new QLabel(QStringLiteral("Record a test to check the mic."));
+    mic_test_status_->setWordWrap(true);
+    test_form->addRow(QStringLiteral(""), mic_test_status_);
+    layout->addWidget(test_group);
 
     auto* run_row = new QHBoxLayout;
     live_button_ = new QPushButton(QStringLiteral("Start"));
