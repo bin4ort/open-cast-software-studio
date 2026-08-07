@@ -60,7 +60,9 @@ void print_help() {
         "  --preset <name>        Shift preset (see `presets`)\n"
         "  --pitch <semitones>    Pitch shift (default 2.0)\n"
         "  --formant <semitones>  Final formant position (0 preserves formants)\n"
-        "  --mode global|selective  VAD-gated all-speech, or only PII segments\n"
+        "  --mode global|selective|hybrid  Shift all speech, only PII segments,\n"
+        "                               or global gender shift + re-voiced behavior\n"
+        "  --gender generic|male|female|custom  Target voice gender (hybrid)\n"
         "  --transcribe           Transcribe and redact along the way\n"
         "  --write-transcript     Write <output>.txt transcript\n"
         "  --synthetic            Replace names with plausible stand-ins\n"
@@ -126,6 +128,7 @@ int cmd_process(Argv& a) {
     dsp::ShiftParams shift;
     std::string preset;
     std::string mode;
+    std::string gender;
     bool write_transcript = false;
     bool transcribe = false;
     bool synthetic = false;
@@ -138,6 +141,7 @@ int cmd_process(Argv& a) {
         else if (std::strcmp(arg, "--pitch") == 0) { a.next(); shift.pitch_semitones = std::atof(a.next()); }
         else if (std::strcmp(arg, "--formant") == 0) { a.next(); shift.formant_semitones = std::atof(a.next()); }
         else if (std::strcmp(arg, "--mode") == 0) { a.next(); mode = a.next(); }
+        else if (std::strcmp(arg, "--gender") == 0) { a.next(); gender = a.next(); }
         else if (std::strcmp(arg, "--transcribe") == 0) { a.next(); transcribe = true; }
         else if (std::strcmp(arg, "--write-transcript") == 0) { a.next(); write_transcript = true; }
         else if (std::strcmp(arg, "--synthetic") == 0) { a.next(); synthetic = true; }
@@ -165,11 +169,14 @@ int cmd_process(Argv& a) {
     if (!mode.empty()) {
         if (mode == "global") opts.mode = dsp::AnonMode::Global;
         else if (mode == "selective") opts.mode = dsp::AnonMode::Selective;
+        else if (mode == "hybrid") opts.mode = dsp::AnonMode::Hybrid;
         else {
-            std::fprintf(stderr, "error: --mode must be global or selective\n");
+            std::fprintf(stderr,
+                         "error: --mode must be global, selective or hybrid\n");
             return 1;
         }
     }
+    opts.target_gender = dsp::gender_from_name(gender.c_str());
     opts.transcribe = transcribe;
     opts.write_transcript = write_transcript;
     opts.synthetic_names = synthetic;

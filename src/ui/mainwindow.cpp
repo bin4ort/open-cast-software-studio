@@ -129,6 +129,7 @@ QWidget* MainWindow::build_process_tab() {
     mode_combo_ = new QComboBox;
     mode_combo_->addItem(QStringLiteral("Global (shift all speech)"), "global");
     mode_combo_->addItem(QStringLiteral("Selective (PII segments only)"), "selective");
+    mode_combo_->addItem(QStringLiteral("Hybrid (AI gender + re-voiced phrases)"), "hybrid");
     opts_form->addRow(QStringLiteral("Mode:"), mode_combo_);
 
     denoise_check_ = new QCheckBox(QStringLiteral("Spectral denoising"));
@@ -189,11 +190,14 @@ void MainWindow::on_process() {
     opts.shift = voice_panel_->params();
     opts.shift.enable_denoise = denoise_check_->isChecked();
     opts.target_gender = voice_panel_->gender();
-    opts.mode = mode_combo_->currentData().toString() == QStringLiteral("selective")
-                    ? dsp::AnonMode::Selective
-                    : dsp::AnonMode::Global;
-    opts.transcribe = transcribe_check_->isChecked();
-    opts.write_transcript = transcribe_check_->isChecked();
+    const QString mode = mode_combo_->currentData().toString();
+    opts.mode = dsp::AnonMode::Global;
+    if (mode == QStringLiteral("selective")) opts.mode = dsp::AnonMode::Selective;
+    else if (mode == QStringLiteral("hybrid")) opts.mode = dsp::AnonMode::Hybrid;
+    opts.transcribe = transcribe_check_->isChecked() ||
+                      opts.mode == dsp::AnonMode::Hybrid;
+    opts.write_transcript = transcribe_check_->isChecked() ||
+                            opts.mode == dsp::AnonMode::Hybrid;
 
     processing_.store(true);
     process_done_.store(false);

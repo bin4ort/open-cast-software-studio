@@ -22,6 +22,7 @@ struct ShiftParams {
 enum class AnonMode {
     Global,     // VAD-gated: shift all speech, leave non-speech untouched
     Selective,  // shift only segments flagged as containing PII
+    Hybrid,     // global gender shift + TTS re-voice rewritten behavior segments
 };
 
 struct Preset {
