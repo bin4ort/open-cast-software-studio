@@ -404,6 +404,12 @@ QWidget* MainWindow::build_live_tab() {
         out_device_combo_->findData(dout));
     dev_form->addRow(QStringLiteral("Input (mic):"), in_device_combo_);
     dev_form->addRow(QStringLiteral("Output (speaker):"), out_device_combo_);
+
+    output_mode_combo_ = new QComboBox;
+    output_mode_combo_->addItem(QStringLiteral("Speaker"), 0);
+    output_mode_combo_->addItem(QStringLiteral("Virtual mic (for apps)"), 1);
+    output_mode_combo_->addItem(QStringLiteral("Speaker + virtual mic"), 2);
+    dev_form->addRow(QStringLiteral("Send to:"), output_mode_combo_);
     layout->addWidget(dev_group);
 
     auto* voice_group = new QGroupBox(QStringLiteral("Voice"));
@@ -489,14 +495,23 @@ void MainWindow::on_live_start_stop() {
     live_engine_->set_mute_silence(mute_silence_check_->isChecked());
     live_engine_->set_dry(dry_check_->isChecked());
 
+    OutputMode mode = OutputMode::Speaker;
+    const int mode_index = output_mode_combo_->currentData().toInt();
+    if (mode_index == 1) mode = OutputMode::VirtualMic;
+    else if (mode_index == 2) mode = OutputMode::Both;
+
     std::string err;
-    if (!live_engine_->start(in_dev, out_dev, rate, 1024, err)) {
+    if (!live_engine_->start(in_dev, out_dev, rate, 1024, mode, err)) {
         QMessageBox::critical(this, QStringLiteral("OCS Studio"),
                               QString::fromStdString(err));
         return;
     }
     live_button_->setText(QStringLiteral("Stop"));
-    live_status_label_->setText(QStringLiteral("Running"));
+    if (mode == OutputMode::Speaker) {
+        live_status_label_->setText(QStringLiteral("Running (speaker)"));
+    } else {
+        live_status_label_->setText(QStringLiteral("Running (virtual mic active)"));
+    }
     live_poll_timer_->start();
 }
 

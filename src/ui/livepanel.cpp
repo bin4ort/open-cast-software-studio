@@ -16,7 +16,8 @@ LiveEngine::~LiveEngine() {
 }
 
 bool LiveEngine::start(int input_dev, int output_dev, int sample_rate,
-                       size_t frames_per_buffer, std::string& err) {
+                       size_t frames_per_buffer, OutputMode mode,
+                       std::string& err) {
     if (running_.load()) return true;
     if (!audio::pa_init()) {
         err = "PortAudio init failed";
@@ -25,6 +26,15 @@ bool LiveEngine::start(int input_dev, int output_dev, int sample_rate,
     if (!audio::open_live(stream_, input_dev, output_dev, sample_rate,
                           frames_per_buffer, err)) {
         return false;
+    }
+    mode_ = mode;
+    if (mode != OutputMode::Speaker) {
+        virtual_mic_ = std::make_unique<audio::VirtualMic>();
+        if (!virtual_mic_->create(sample_rate, err)) {
+            virtual_mic_.reset();
+            audio::close_live(stream_);
+            return false;
+        }
     }
     stop_.store(false);
     running_.store(true);
@@ -40,6 +50,10 @@ void LiveEngine::stop() {
     audio::stop_live(stream_);
     if (worker_.joinable()) worker_.join();
     audio::close_live(stream_);
+    if (virtual_mic_) {
+        virtual_mic_->destroy();
+        virtual_mic_.reset();
+    }
     audio::pa_shutdown();
 }
 
@@ -91,6 +105,10 @@ void LiveEngine::worker_loop() {
         }
 
         stream_.output_rb.write(out_buf.data(), made);
+
+        if (virtual_mic_ && mode_ != OutputMode::Speaker) {
+            virtual_mic_->write(out_buf.data(), made);
+        }
 
         {
             std::lock_guard<std::mutex> lock(display_mu_);

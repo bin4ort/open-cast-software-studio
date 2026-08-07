@@ -34,6 +34,7 @@ add_library(ocs_core STATIC
   src/audio/device.cpp
   src/audio/fileio.cpp
   src/audio/ringbuf.cpp
+  src/audio/virtualmic.cpp
   src/dsp/fft.cpp
   src/dsp/stft.cpp
   src/dsp/phase_vocoder.cpp

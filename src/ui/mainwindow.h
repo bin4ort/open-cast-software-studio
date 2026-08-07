@@ -84,6 +84,7 @@ private:
     // Live tab.
     QComboBox* in_device_combo_ = nullptr;
     QComboBox* out_device_combo_ = nullptr;
+    QComboBox* output_mode_combo_ = nullptr;
     VoicePanel* live_voice_panel_ = nullptr;
     QSpinBox* sample_rate_spin_ = nullptr;
     QCheckBox* mute_silence_check_ = nullptr;
