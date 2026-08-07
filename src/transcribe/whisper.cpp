@@ -113,18 +113,38 @@ bool transcribe(const std::string& input_path, const WhisperConfig& cfg,
 
     try {
         const util::Json root = util::Json::parse(text);
-        if (!root.contains("segments") || !root.at("segments").is_array()) {
-            err = "unexpected whisper JSON (no segments array)";
-            return false;
+        if (root.contains("segments") && root.at("segments").is_array()) {
+            // openai/whisper style: segments[] with start/end in seconds.
+            for (const auto& s : root.at("segments").as_array()) {
+                Segment seg;
+                seg.start = s.num("start", 0.0);
+                seg.end = s.num("end", seg.start + 1.0);
+                seg.text = s.str("text", "");
+                if (seg.end <= seg.start) continue;
+                segments.push_back(std::move(seg));
+            }
+            return !segments.empty();
         }
-        for (const auto& s : root.at("segments").as_array()) {
-            Segment seg;
-            seg.start = s.num("start", 0.0);
-            seg.end = s.num("end", seg.start + 1.0);
-            seg.text = s.str("text", "");
-            if (seg.end <= seg.start) continue;
-            segments.push_back(std::move(seg));
+        // whisper.cpp style: transcription[] with offsets (milliseconds).
+        if (root.contains("transcription") && root.at("transcription").is_array()) {
+            for (const auto& s : root.at("transcription").as_array()) {
+                Segment seg;
+                if (s.contains("offsets") && s.at("offsets").is_object()) {
+                    const auto& off = s.at("offsets");
+                    const double from = off.num("from", -1.0);
+                    const double to = off.num("to", -1.0);
+                    // whisper.cpp reports offsets in milliseconds.
+                    seg.start = from / 1000.0;
+                    seg.end = to / 1000.0;
+                }
+                seg.text = s.str("text", "");
+                if (seg.end <= seg.start) continue;
+                segments.push_back(std::move(seg));
+            }
+            return !segments.empty();
         }
+        err = "unexpected whisper JSON (no segments/transcription array)";
+        return false;
     } catch (const std::exception& e) {
         err = std::string("failed to parse whisper JSON: ") + e.what();
         return false;

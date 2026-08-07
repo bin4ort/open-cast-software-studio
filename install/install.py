@@ -373,14 +373,19 @@ def step_install(build_dir: str) -> None:
     run(pre + ["cmake", "--install", build_dir, "--prefix", prefix])
 
     # Persist the manifest for uninstall even if the build dir is removed.
+    # For system installs the share dir needs root, so create/copy via sudo.
     manifest_src = Path(build_dir) / "install_manifest.txt"
     manifest_dst = Path(prefix) / "share" / PROJECT
     if manifest_src.exists():
-        manifest_dst.mkdir(parents=True, exist_ok=True)
-        shutil.copy(manifest_src, manifest_dst / "install_manifest.txt")
         if system and not is_root():
+            run(["sudo", "mkdir", "-p", str(manifest_dst)])
+            run(["sudo", "cp", str(manifest_src),
+                 str(manifest_dst / "install_manifest.txt")])
             run(["sudo", "chown", "-R", f"{os.getuid()}:{os.getgid()}",
                  str(manifest_dst)], check=False)
+        else:
+            manifest_dst.mkdir(parents=True, exist_ok=True)
+            shutil.copy(manifest_src, manifest_dst / "install_manifest.txt")
 
     if cmd_exists(GUI_BIN) or (Path(build_dir) / GUI_BIN).exists():
         if confirm("Create a desktop menu entry for the GUI?", default=True):
