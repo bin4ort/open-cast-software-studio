@@ -49,6 +49,7 @@ add_library(ocs_core STATIC
   src/ai/rewriter.cpp
   src/ai/llm.cpp
   src/ai/vc.cpp
+  src/ai/regen.cpp
   src/tts.cpp
   src/processing/job.cpp
 )

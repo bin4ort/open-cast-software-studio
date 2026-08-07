@@ -36,6 +36,11 @@ bool LiveEngine::start(int input_dev, int output_dev, int sample_rate,
             return false;
         }
     }
+    if (ai_regen_.load() && !whisper_model_.empty()) {
+        regenerator_ = std::make_unique<ai::Regenerator>();
+        regenerator_->configure(whisper_model_, regen_gender_, regen_shift_,
+                                sample_rate);
+    }
     stop_.store(false);
     running_.store(true);
     worker_ = std::thread(&LiveEngine::worker_loop, this);
@@ -53,6 +58,10 @@ void LiveEngine::stop() {
     if (virtual_mic_) {
         virtual_mic_->destroy();
         virtual_mic_.reset();
+    }
+    if (regenerator_) {
+        regenerator_->stop();
+        regenerator_.reset();
     }
     audio::pa_shutdown();
 }
@@ -93,26 +102,50 @@ void LiveEngine::worker_loop() {
         }
 
         const bool speech = vad.update(in_buf.data(), got);
-        size_t made = 0;
-        if (dry_.load()) {
-            out_buf.assign(in_buf.begin(), in_buf.begin() + got);
-            made = got;
-        } else if (mute_.load() && !speech) {
-            std::fill(out_buf.begin(), out_buf.begin() + got, 0.0f);
-            made = got;
+
+        // AI regeneration path: accumulate the utterance, transcribe + TTS it
+        // on a background thread, and play the re-synthesized speech back.
+        if (ai_regen_.load() && regenerator_ && regenerator_->ready()) {
+            if (speech) {
+                utterance_.insert(utterance_.end(), in_buf.begin(),
+                                  in_buf.begin() + got);
+            } else if (was_speech_) {
+                if (utterance_.size() >
+                    static_cast<size_t>(0.3 * stream_.sample_rate)) {
+                    regenerator_->submit(utterance_);
+                }
+                utterance_.clear();
+            }
+            was_speech_ = speech;
+
+            size_t made = regenerator_->poll(out_buf, got);
+            if (made < got) {
+                std::fill(out_buf.begin() + made, out_buf.begin() + got, 0.0f);
+                made = got;
+            }
         } else {
-            made = shifter->process(in_buf.data(), got, out_buf.data(), got);
+            size_t made = 0;
+            if (dry_.load()) {
+                out_buf.assign(in_buf.begin(), in_buf.begin() + got);
+                made = got;
+            } else if (mute_.load() && !speech) {
+                std::fill(out_buf.begin(), out_buf.begin() + got, 0.0f);
+                made = got;
+            } else {
+                made = shifter->process(in_buf.data(), got, out_buf.data(), got);
+            }
+            (void)made;
         }
 
-        stream_.output_rb.write(out_buf.data(), made);
+        stream_.output_rb.write(out_buf.data(), got);
 
         if (virtual_mic_ && mode_ != OutputMode::Speaker) {
-            virtual_mic_->write(out_buf.data(), made);
+            virtual_mic_->write(out_buf.data(), got);
         }
 
         {
             std::lock_guard<std::mutex> lock(display_mu_);
-            for (size_t i = 0; i < made; ++i) display_.push_back(out_buf[i]);
+            for (size_t i = 0; i < got; ++i) display_.push_back(out_buf[i]);
             while (display_.size() > 48000 * 4) display_.pop_front();
         }
     }

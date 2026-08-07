@@ -41,6 +41,24 @@ std::string find_whisper_binary() {
     return {};
 }
 
+std::string find_whisper_model() {
+    if (const char* m = std::getenv("OCS_WHISPER_MODEL"); m && *m) {
+        if (std::filesystem::exists(m)) return m;
+    }
+    const char* home = std::getenv("HOME");
+    if (!home) return {};
+    for (const auto& sub : {"/.local/share/ocs_studio/models",
+                            "/.config/ocs_studio/models"}) {
+        const auto dir = std::filesystem::path(home) / sub;
+        std::error_code ec;
+        if (!std::filesystem::is_directory(dir, ec)) continue;
+        for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+            if (entry.path().extension() == ".bin") return entry.path().string();
+        }
+    }
+    return {};
+}
+
 bool transcribe(const std::string& input_path, const WhisperConfig& cfg,
                 std::vector<Segment>& segments, std::string& err) {
     segments.clear();

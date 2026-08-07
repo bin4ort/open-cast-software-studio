@@ -10,6 +10,7 @@
 #include <thread>
 #include <vector>
 
+#include "ai/regen.h"
 #include "audio/device.h"
 #include "audio/virtualmic.h"
 
@@ -37,6 +38,14 @@ public:
     void set_pitch_semitones(double st);
     void set_mute_silence(bool on) { mute_.store(on); }
     void set_dry(bool on) { dry_.store(on); }
+    // AI regeneration: transcribe utterances and re-synthesize in the target
+    // voice instead of merely pitch-shifting. `model` is a whisper model path.
+    void set_ai_regen(bool on) { ai_regen_.store(on); }
+    void set_whisper_model(const std::string& model) { whisper_model_ = model; }
+    void set_regen_voice(dsp::Gender g, const dsp::ShiftParams& shift) {
+        regen_gender_ = g;
+        regen_shift_ = shift;
+    }
 
     double pitch_semitones() const { return pitch_st_; }
     OutputMode output_mode() const { return mode_; }
@@ -49,10 +58,15 @@ private:
 
     audio::LiveStream stream_;
     std::unique_ptr<audio::VirtualMic> virtual_mic_;
+    std::unique_ptr<ai::Regenerator> regenerator_;
     std::thread worker_;
     std::atomic<bool> running_{false};
     std::atomic<bool> stop_{false};
     OutputMode mode_ = OutputMode::Speaker;
+    std::atomic<bool> ai_regen_{false};
+    std::string whisper_model_;
+    dsp::Gender regen_gender_ = dsp::Gender::Generic;
+    dsp::ShiftParams regen_shift_;
 
     std::mutex pitch_mu_;
     double pitch_st_ = 2.0;
@@ -61,6 +75,8 @@ private:
 
     std::mutex display_mu_;
     std::deque<float> display_;
+    std::vector<float> utterance_;
+    bool was_speech_ = false;
 };
 
 }  // namespace ocs::ui

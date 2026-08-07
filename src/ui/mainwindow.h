@@ -94,6 +94,8 @@ private:
     QSpinBox* sample_rate_spin_ = nullptr;
     QCheckBox* mute_silence_check_ = nullptr;
     QCheckBox* dry_check_ = nullptr;
+    QCheckBox* ai_regen_check_ = nullptr;
+    QLineEdit* whisper_model_edit_ = nullptr;
     QPushButton* live_button_ = nullptr;
     QLabel* live_status_label_ = nullptr;
     Waveform* live_waveform_ = nullptr;

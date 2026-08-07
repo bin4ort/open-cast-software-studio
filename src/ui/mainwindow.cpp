@@ -31,6 +31,7 @@
 #include "audio/fileio.h"
 #include "dsp/pipeline.h"
 #include "processing/job.h"
+#include "transcribe/whisper.h"
 #include "tts.h"
 #include "ui/livepanel.h"
 #include "ui/voicepanel.h"
@@ -98,6 +99,8 @@ void MainWindow::save_settings() {
     m["sample_rate"] = util::Json(sample_rate_spin_->value());
     m["mute_silence"] = util::Json(mute_silence_check_->isChecked());
     m["dry"] = util::Json(dry_check_->isChecked());
+    m["ai_regen"] = util::Json(ai_regen_check_->isChecked());
+    m["whisper_model"] = util::Json(whisper_model_edit_->text().toStdString());
     m["win_w"] = util::Json(width());
     m["win_h"] = util::Json(height());
 
@@ -128,6 +131,9 @@ void MainWindow::load_settings() {
             static_cast<int>(root.at("sample_rate").as_number()));
         if (root.contains("mute_silence")) mute_silence_check_->setChecked(root.at("mute_silence").as_bool());
         if (root.contains("dry")) dry_check_->setChecked(root.at("dry").as_bool());
+        if (root.contains("ai_regen")) ai_regen_check_->setChecked(root.at("ai_regen").as_bool());
+        if (root.contains("whisper_model")) whisper_model_edit_->setText(
+            QString::fromStdString(root.at("whisper_model").as_string()));
         if (root.contains("win_w") && root.contains("win_h")) {
             resize(static_cast<int>(root.at("win_w").as_number()),
                    static_cast<int>(root.at("win_h").as_number()));
@@ -523,6 +529,17 @@ QWidget* MainWindow::build_live_tab() {
     ctrl_form->addRow(QStringLiteral(""), dry_check_);
     layout->addWidget(ctrl_group);
 
+    auto* regen_group = new QGroupBox(QStringLiteral("AI regeneration"));
+    auto* regen_form = new QFormLayout(regen_group);
+    ai_regen_check_ = new QCheckBox(
+        QStringLiteral("Regenerate with AI (transcribe + re-synthesize)"));
+    regen_form->addRow(QStringLiteral(""), ai_regen_check_);
+    whisper_model_edit_ = new QLineEdit;
+    whisper_model_edit_->setPlaceholderText(QStringLiteral("Path to a whisper .bin model"));
+    whisper_model_edit_->setText(QString::fromStdString(transcribe::find_whisper_model()));
+    regen_form->addRow(QStringLiteral("Whisper model:"), whisper_model_edit_);
+    layout->addWidget(regen_group);
+
     auto* test_group = new QGroupBox(QStringLiteral("Mic test"));
     auto* test_form = new QFormLayout(test_group);
     test_seconds_spin_ = new QSpinBox;
@@ -585,6 +602,10 @@ void MainWindow::on_live_start_stop() {
     live_engine_->set_pitch_semitones(live_voice_panel_->params().pitch_semitones);
     live_engine_->set_mute_silence(mute_silence_check_->isChecked());
     live_engine_->set_dry(dry_check_->isChecked());
+    live_engine_->set_ai_regen(ai_regen_check_->isChecked());
+    live_engine_->set_whisper_model(whisper_model_edit_->text().toStdString());
+    live_engine_->set_regen_voice(live_voice_panel_->gender(),
+                                  live_voice_panel_->params());
 
     OutputMode mode = OutputMode::Speaker;
     const int mode_index = output_mode_combo_->currentData().toInt();

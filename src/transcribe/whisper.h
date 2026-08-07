@@ -18,6 +18,10 @@ struct WhisperConfig {
 // Locates a usable transcription binary on PATH.
 std::string find_whisper_binary();
 
+// Locates a whisper model: $OCS_WHISPER_MODEL, else a *.bin under
+// ~/.local/share/ocs_studio/models or ~/.config/ocs_studio/models.
+std::string find_whisper_model();
+
 // Transcribes `input_path` to timestamped segments. Returns false and sets
 // `err` on any failure (binary missing, decode/run error, no output).
 bool transcribe(const std::string& input_path, const WhisperConfig& cfg,
