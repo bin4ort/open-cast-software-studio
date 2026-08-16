@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Open Cast Software Studio contributors
+#include "../common.h"
 #include "audio/fileio.h"
 
 #include <sndfile.h>
@@ -59,6 +60,11 @@ bool ffmpeg_available() {
 }
 
 AudioData read_file(const std::string& path, std::string* err) {
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(path, ec)) {
+        if (err) *err = ec ? ec.message() : "no such file: " + path;
+        return {};
+    }
     if (!sndfile_can_handle(path)) {
         if (ffmpeg_available()) {
             std::string e;
@@ -68,14 +74,14 @@ AudioData read_file(const std::string& path, std::string* err) {
                 return {};
             }
 #ifdef OCS_HAVE_FFMPEG
-            if (system(("ffmpeg -y -v error -i \"" + path +
-                        "\" -ac 1 -ar 48000 \"" + wav + "\"")
+            if (system(("ffmpeg -y -v error -i " + ocs::shell_q(path) +
+                        " -ac 1 -ar 48000 " + ocs::shell_q(wav))
                            .c_str()) != 0) {
                 if (err) *err = "ffmpeg failed to decode '" + path + "'";
                 return {};
             }
             AudioData ad = read_file(wav, err);
-            std::remove(wav.c_str());
+            (void)std::remove(wav.c_str()); /* temp cleanup, best effort */
             return ad;
 #endif
         }
@@ -137,8 +143,13 @@ bool write_file(const std::string& path, const AudioData& data,
             }
             AudioData tmp = data;
             if (!write_file(wav, tmp, err)) return false;
-            const int rc = system(("ffmpeg -y -v error -i \"" + wav + "\" \"" + path + "\"").c_str());
-            std::remove(wav.c_str());
+            const int rc = system(("ffmpeg -y -v error -i " + ocs::shell_q(wav) +
+                                   " " + ocs::shell_q(path))
+                                      .c_str());
+            if (std::remove(wav.c_str()) != 0 && err) {
+                // temp cleanup failure is non-fatal; log it
+                *err = "warning: failed to remove temp file '" + wav + "'";
+            }
             if (rc != 0) {
                 if (err) *err = "ffmpeg failed to encode '" + path + "'";
                 return false;

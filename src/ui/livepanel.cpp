@@ -25,6 +25,7 @@ bool LiveEngine::start(int input_dev, int output_dev, int sample_rate,
     }
     if (!audio::open_live(stream_, input_dev, output_dev, sample_rate,
                           frames_per_buffer, err)) {
+        audio::pa_shutdown();
         return false;
     }
     mode_ = mode;
@@ -33,6 +34,7 @@ bool LiveEngine::start(int input_dev, int output_dev, int sample_rate,
         if (!virtual_mic_->create(sample_rate, err)) {
             virtual_mic_.reset();
             audio::close_live(stream_);
+            audio::pa_shutdown();
             return false;
         }
     }
@@ -44,7 +46,14 @@ bool LiveEngine::start(int input_dev, int output_dev, int sample_rate,
     stop_.store(false);
     running_.store(true);
     worker_ = std::thread(&LiveEngine::worker_loop, this);
-    return audio::start_live(stream_);
+    if (!audio::start_live(stream_)) {
+        // Full teardown: join the worker and release every resource so the
+        // engine is not left half-running after a failed start.
+        err = "could not start the audio stream";
+        stop();
+        return false;
+    }
+    return true;
 }
 
 void LiveEngine::stop() {
@@ -95,10 +104,18 @@ void LiveEngine::worker_loop() {
             std::lock_guard<std::mutex> lock(pitch_mu_);
             pitch = pitch_st_;
         }
-        if (!shifter || std::fabs(shifter->pitch_factor() -
-                                  dsp::semitones_to_ratio(pitch)) > 1e-6) {
-            shifter = std::make_unique<dsp::PitchShifter>(
-                2048, 4, dsp::semitones_to_ratio(pitch));
+        try {
+            if (!shifter || std::fabs(shifter->pitch_factor() -
+                                      dsp::semitones_to_ratio(pitch)) > 1e-6) {
+                shifter = std::make_unique<dsp::PitchShifter>(
+                    2048, 4, dsp::semitones_to_ratio(pitch));
+            }
+        } catch (const std::exception&) {
+            // Resampler allocation failed; pass audio through unshifted
+            // rather than crashing the audio path.
+            out_buf.assign(in_buf.begin(), in_buf.begin() + got);
+            stream_.output_rb.write(out_buf.data(), got);
+            continue;
         }
 
         const bool speech = vad.update(in_buf.data(), got);
@@ -133,6 +150,12 @@ void LiveEngine::worker_loop() {
                 made = got;
             } else {
                 made = shifter->process(in_buf.data(), got, out_buf.data(), got);
+                // The streaming shifter buffers internally, so a block can
+                // produce fewer samples than were fed in. Zero the remainder
+                // so stale samples from earlier blocks are never heard.
+                if (made < got) {
+                    std::fill(out_buf.begin() + made, out_buf.begin() + got, 0.0f);
+                }
             }
             (void)made;
         }

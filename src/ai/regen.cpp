@@ -6,6 +6,7 @@
 #include <filesystem>
 
 #include <samplerate.h>
+#include <unistd.h>
 
 #include "audio/fileio.h"
 #include "dsp/pipeline.h"
@@ -100,15 +101,30 @@ void Regenerator::worker() {
             pending_.pop_front();
         }
 
-        // Save the utterance to a temp wav for whisper.
-        std::string tmp = "/tmp/ocs_regen.wav";
+        // Save the utterance to a temp wav for whisper (unique name so
+        // concurrent sessions never clobber each other).
+        std::string tmp;
+        {
+            const auto dir = std::filesystem::temp_directory_path();
+            std::string tmpl = (dir / "ocs_regen_XXXXXX.wav").string();
+            std::vector<char> buf(tmpl.begin(), tmpl.end());
+            buf.push_back('\0');
+            const int fd = mkstemps(buf.data(), 4);
+            if (fd < 0) continue;
+            ::close(fd);
+            tmp = buf.data();
+        }
         {
             AudioData ad;
             ad.sample_rate = sample_rate_;
             ad.samples.reserve(utterance.size());
             for (float v : utterance) ad.samples.push_back(static_cast<Sample>(v));
             std::string werr;
-            if (!audio::write_file(tmp, ad, &werr)) continue;
+            if (!audio::write_file(tmp, ad, &werr)) {
+                std::error_code ec;
+                std::filesystem::remove(tmp, ec);
+                continue;
+            }
         }
 
         transcribe::WhisperConfig wc;

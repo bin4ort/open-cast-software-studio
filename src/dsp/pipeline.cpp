@@ -132,14 +132,15 @@ std::vector<double> process_selective(
     }
 
     std::vector<std::pair<size_t, size_t>> regions;
+    // Union with VAD to avoid shifting pure silence around each span (the
+    // speech map is shared by all segments; computed once).
+    const auto speech = detect_speech(src, sample_rate);
     for (const auto& seg : segments) {
         if (!seg.has_pii) continue;
         size_t s = static_cast<size_t>(seg.start * sample_rate);
         size_t e = static_cast<size_t>(seg.end * sample_rate);
         s = s > 0 ? s : 0;
         e = std::min(src.size(), e);
-        // Union with VAD to avoid shifting pure silence around the span.
-        const auto speech = detect_speech(src, sample_rate);
         for (const auto& [vs, ve] : speech) {
             if (ve > s && vs < e) {
                 regions.emplace_back(std::max(vs, s), std::min(ve, e));

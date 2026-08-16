@@ -163,12 +163,23 @@ private:
                             else if (h >= 'A' && h <= 'F') cp |= h - 'A' + 10;
                             else throw JsonError("bad \\u escape");
                         }
-                        // BMP only (surrogates out of scope for this parser).
-                        if (cp >= 0x80) {
+                        // Encode as UTF-8 (2-4 bytes depending on the
+                        // code point; surrogate escapes produce single
+                        // BMP code points, which is fine for transcripts).
+                        if (cp < 0x80) {
+                            out += static_cast<char>(cp);
+                        } else if (cp < 0x800) {
                             out += static_cast<char>(0xC0 | (cp >> 6));
                             out += static_cast<char>(0x80 | (cp & 0x3F));
+                        } else if (cp < 0x10000) {
+                            out += static_cast<char>(0xE0 | (cp >> 12));
+                            out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+                            out += static_cast<char>(0x80 | (cp & 0x3F));
                         } else {
-                            out += static_cast<char>(cp);
+                            out += static_cast<char>(0xF0 | (cp >> 18));
+                            out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+                            out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+                            out += static_cast<char>(0x80 | (cp & 0x3F));
                         }
                         break;
                     }

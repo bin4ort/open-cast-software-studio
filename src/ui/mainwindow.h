@@ -5,6 +5,7 @@
 #include <QMainWindow>
 
 #include <atomic>
+#include <functional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -28,8 +29,10 @@ namespace ocs::ui {
 class Waveform;
 class LiveEngine;
 class VoicePanel;
+class SettingsPanel;
 
-// Main application window: File processing, Live masking and Transcript tabs.
+// Main application window: File processing, Live masking, Transcript and
+// Settings tabs.
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -52,13 +55,20 @@ private slots:
     void on_record_anon();
     void on_replay();
     void record_test(bool anonymized);
+    void on_compare_toggled(bool on);
+    void on_correct_with_ai();
 
 private:
     QWidget* build_process_tab();
     QWidget* build_live_tab();
     QWidget* build_transcript_tab();
+    QWidget* build_settings_tab();
     void save_settings();
     void load_settings();
+    // Applies the settings-tab values to the LLM connectivity config and
+    // refreshes any UI that depends on it.
+    void apply_ai_settings();
+    void spawn_worker(std::function<void()> fn);
 
     // Process tab.
     QLineEdit* input_path_ = nullptr;
@@ -71,7 +81,13 @@ private:
     QLabel* status_label_ = nullptr;
     Waveform* input_waveform_ = nullptr;
     Waveform* output_waveform_ = nullptr;
+    QPushButton* compare_button_ = nullptr;
+    QPushButton* correct_button_ = nullptr;
     QTimer* process_poll_timer_ = nullptr;
+
+    // AI correction of the processed output (fed with the waveform diff).
+    std::atomic<bool> correcting_{false};
+    std::string correction_note_;
 
     // Voice preview (P2).
     QPlainTextEdit* preview_text_edit_ = nullptr;
@@ -82,6 +98,7 @@ private:
     std::thread process_thread_;
     std::atomic<bool> processing_{false};
     std::atomic<bool> process_done_{false};
+    std::atomic<int> worker_threads_{0};
     bool process_ok_ = false;
     std::string process_message_;
     std::vector<Segment> process_segments_;
@@ -116,6 +133,9 @@ private:
     // Transcript tab.
     QPlainTextEdit* transcript_edit_ = nullptr;
     QPlainTextEdit* transcript_output_ = nullptr;
+
+    // Settings tab.
+    SettingsPanel* settings_panel_ = nullptr;
 };
 
 }  // namespace ocs::ui

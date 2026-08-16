@@ -5,10 +5,16 @@
 #include <cstdio>
 
 // Test registration is done via static initializers in the included files.
+#include "compare_test.cpp"
+#include "correction_test.cpp"
 #include "gender_test.cpp"
+#include "json_test.cpp"
+#include "llm_config_test.cpp"
 #include "redactor_test.cpp"
 #include "rewriter_test.cpp"
+#include "ringbuf_test.cpp"
 #include "stft_test.cpp"
+#include "vad_test.cpp"
 #include "vocoder_test.cpp"
 
 int main() {

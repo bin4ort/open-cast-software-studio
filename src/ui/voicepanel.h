@@ -4,6 +4,9 @@
 
 #include <QWidget>
 
+#include <atomic>
+#include <string>
+
 #include "dsp/gender.h"
 #include "dsp/pipeline.h"
 #include "util/json.h"
@@ -25,6 +28,7 @@ class VoicePanel : public QWidget {
 public:
     // `live` hides the formant control (the real-time shifter is pitch-only).
     explicit VoicePanel(bool live = false, QWidget* parent = nullptr);
+    ~VoicePanel() override;
 
     dsp::ShiftParams params() const;
     dsp::Gender gender() const;
@@ -39,6 +43,10 @@ public:
     util::Json snapshot() const;
     void restore(const util::Json& obj);
 
+    // Refreshes the AI connectivity status label in the background. Safe to
+    // call at any time (e.g. after the AI settings changed).
+    void refresh_ai_status();
+
 signals:
     void changed();
 
@@ -51,6 +59,11 @@ private slots:
     void on_load_preset();
 
 private:
+    // Runs `fn` on a detached worker thread (used for AI calls that can take
+    // a long time). The destructor waits for in-flight workers.
+    template <typename Fn>
+    void run_worker(Fn fn);
+
     bool live_;
     QComboBox* preset_combo_ = nullptr;
     QComboBox* gender_combo_ = nullptr;
@@ -63,6 +76,8 @@ private:
     QLabel* ai_status_ = nullptr;
     bool applying_profile_ = false;
     bool prompt_translated_ = false;
+    std::atomic<bool> translating_{false};
+    std::atomic<int> worker_threads_{0};
 };
 
 }  // namespace ocs::ui

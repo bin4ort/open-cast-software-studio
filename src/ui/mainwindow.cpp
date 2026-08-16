@@ -5,10 +5,12 @@
 #include <QCheckBox>
 #include <QCloseEvent>
 #include <QComboBox>
+#include <QDir>
 #include <QDoubleSpinBox>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
+#include <QFrame>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -16,24 +18,31 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QTabWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include <chrono>
 #include <fstream>
+#include <functional>
 #include <map>
 #include <sstream>
 
+#include "ai/correction.h"
+#include "ai/llm.h"
 #include "anonymize/redactor.h"
 #include "audio/device.h"
 #include "audio/fileio.h"
+#include "dsp/compare.h"
 #include "dsp/pipeline.h"
 #include "processing/job.h"
 #include "transcribe/whisper.h"
 #include "tts.h"
 #include "ui/livepanel.h"
+#include "ui/settingspanel.h"
 #include "ui/voicepanel.h"
 #include "ui/waveform.h"
 #include "util/json.h"
@@ -48,6 +57,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     tabs->addTab(build_process_tab(), QStringLiteral("Process file"));
     tabs->addTab(build_live_tab(), QStringLiteral("Live masking"));
     tabs->addTab(build_transcript_tab(), QStringLiteral("Transcript"));
+    tabs->addTab(build_settings_tab(), QStringLiteral("Settings"));
     setCentralWidget(tabs);
 
     live_engine_ = new LiveEngine;
@@ -60,12 +70,17 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(live_poll_timer_, &QTimer::timeout, this, &MainWindow::on_live_poll);
 
     load_settings();
+    apply_ai_settings();
 }
 
 MainWindow::~MainWindow() {
-    if (processing_.load()) {
-        processing_.store(false);
-        if (process_thread_.joinable()) process_thread_.join();
+    // A finished std::thread stays joinable; joining here (even after the
+    // work completed) prevents std::terminate on destruction.
+    if (process_thread_.joinable()) process_thread_.join();
+    // Wait for detached worker threads (preview/record/replay) so they never
+    // touch members of a destroyed window.
+    while (worker_threads_.load() > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     if (live_engine_) {
         live_engine_->stop();
@@ -101,6 +116,7 @@ void MainWindow::save_settings() {
     m["dry"] = util::Json(dry_check_->isChecked());
     m["ai_regen"] = util::Json(ai_regen_check_->isChecked());
     m["whisper_model"] = util::Json(whisper_model_edit_->text().toStdString());
+    m["ai_settings"] = settings_panel_->snapshot();
     m["win_w"] = util::Json(width());
     m["win_h"] = util::Json(height());
 
@@ -134,6 +150,7 @@ void MainWindow::load_settings() {
         if (root.contains("ai_regen")) ai_regen_check_->setChecked(root.at("ai_regen").as_bool());
         if (root.contains("whisper_model")) whisper_model_edit_->setText(
             QString::fromStdString(root.at("whisper_model").as_string()));
+        if (root.contains("ai_settings")) settings_panel_->restore(root.at("ai_settings"));
         if (root.contains("win_w") && root.contains("win_h")) {
             resize(static_cast<int>(root.at("win_w").as_number()),
                    static_cast<int>(root.at("win_h").as_number()));
@@ -152,8 +169,16 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 // Process tab
 // ---------------------------------------------------------------------------
 QWidget* MainWindow::build_process_tab() {
+    // Everything lives in a scroll area so the controls stay reachable even
+    // when the AI panel expands the form on small screens.
     auto* page = new QWidget;
-    auto* layout = new QVBoxLayout(page);
+    auto* page_layout = new QVBoxLayout(page);
+    page_layout->setContentsMargins(0, 0, 0, 0);
+    auto* scroll = new QScrollArea(page);
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    auto* inner = new QWidget;
+    auto* layout = new QVBoxLayout(inner);
 
     auto* file_group = new QGroupBox(QStringLiteral("Files"));
     auto* file_form = new QFormLayout(file_group);
@@ -234,6 +259,30 @@ QWidget* MainWindow::build_process_tab() {
     wave_row->addWidget(output_waveform_);
     layout->addLayout(wave_row, 1);
 
+    // Compare + AI correction controls for the two graphs.
+    auto* wave_controls = new QHBoxLayout;
+    auto* wave_hint = new QLabel(QStringLiteral(
+        "Original vs processed. Compare overlaps both graphs (grayscale = "
+        "the other recording)."));
+    wave_hint->setWordWrap(true);
+    compare_button_ = new QPushButton(QStringLiteral("Compare (overlap)"));
+    compare_button_->setCheckable(true);
+    connect(compare_button_, &QPushButton::toggled, this,
+            &MainWindow::on_compare_toggled);
+    correct_button_ = new QPushButton(QStringLiteral("Correct with AI"));
+    connect(correct_button_, &QPushButton::clicked, this,
+            &MainWindow::on_correct_with_ai);
+    correct_button_->setEnabled(false);
+    correct_button_->setToolTip(QStringLiteral(
+        "Feeds the waveform difference to the AI, applies the suggested "
+        "voice correction and re-processes the file."));
+    wave_controls->addWidget(compare_button_);
+    wave_controls->addWidget(correct_button_);
+    wave_controls->addWidget(wave_hint, 1);
+    layout->addLayout(wave_controls);
+
+    scroll->setWidget(inner);
+    page_layout->addWidget(scroll);
     return page;
 }
 
@@ -250,11 +299,20 @@ void MainWindow::on_pick_input() {
         if (!ad.samples.empty()) {
             input_waveform_->set_samples(ad.samples, ad.sample_rate);
         }
+        // A new input invalidates the previous comparison.
+        output_waveform_->set_samples({}, 0);
+        correction_note_.clear();
+        correct_button_->setEnabled(false);
+        compare_button_->setChecked(false);
+        on_compare_toggled(false);
     }
 }
 
 void MainWindow::on_process() {
     if (processing_.load()) return;
+    // Join a finished run so reassigning process_thread_ never hits
+    // std::thread's joinable-assignment std::terminate.
+    if (process_thread_.joinable()) process_thread_.join();
 
     const QString in = input_path_->text();
     if (in.isEmpty()) {
@@ -284,6 +342,7 @@ void MainWindow::on_process() {
     process_done_.store(false);
     status_label_->setText(QStringLiteral("Processing..."));
     process_button_->setEnabled(false);
+    correct_button_->setEnabled(false);
 
     process_thread_ = std::thread([this, opts] {
         const job::JobResult res = job::run(opts);
@@ -302,6 +361,8 @@ void MainWindow::on_process_poll() {
     if (!process_done_.load()) return;
     process_poll_timer_->stop();
     process_button_->setEnabled(true);
+    correct_button_->setEnabled(!input_waveform_->samples().empty() &&
+                                !output_waveform_->samples().empty());
 
     if (!process_ok_) {
         status_label_->setText(QStringLiteral("Error: ") +
@@ -311,6 +372,11 @@ void MainWindow::on_process_poll() {
         return;
     }
     status_label_->setText(QStringLiteral("Done"));
+    if (!correction_note_.empty()) {
+        status_label_->setText(QStringLiteral("Done - AI correction applied: ") +
+                               QString::fromStdString(correction_note_));
+        correction_note_.clear();
+    }
     if (!process_message_.empty() && process_message_ != "ok") {
         status_label_->setText(QString::fromStdString(process_message_));
     }
@@ -320,6 +386,7 @@ void MainWindow::on_process_poll() {
     if (!ad.samples.empty()) {
         output_waveform_->set_samples(ad.samples, ad.sample_rate);
     }
+    if (compare_button_->isChecked()) on_compare_toggled(true);
     if (!process_segments_.empty()) {
         transcript_edit_->clear();
         for (const auto& seg : process_segments_) {
@@ -329,9 +396,95 @@ void MainWindow::on_process_poll() {
 }
 
 // ---------------------------------------------------------------------------
+// Waveform compare + AI correction
+// ---------------------------------------------------------------------------
+void MainWindow::on_compare_toggled(bool on) {
+    if (on) {
+        // Vivid main = the graph itself; grayscale overlay = the other
+        // recording, so differences stand out.
+        input_waveform_->set_overlay(output_waveform_->samples());
+        output_waveform_->set_overlay(input_waveform_->samples());
+    } else {
+        input_waveform_->set_overlay({});
+        output_waveform_->set_overlay({});
+    }
+    input_waveform_->set_compare_mode(on);
+    output_waveform_->set_compare_mode(on);
+}
+
+void MainWindow::on_correct_with_ai() {
+    if (correcting_.load() || processing_.load()) return;
+    if (input_waveform_->samples().empty() || output_waveform_->samples().empty()) {
+        status_label_->setText(QStringLiteral(
+            "Load a file and process it first - the correction needs both "
+            "the original and the processed waveform."));
+        return;
+    }
+    if (input_path_->text().isEmpty()) {
+        status_label_->setText(QStringLiteral("Pick an input file first."));
+        return;
+    }
+
+    correcting_.store(true);
+    correct_button_->setEnabled(false);
+    status_label_->setText(QStringLiteral("Analyzing waveforms and asking the AI..."));
+
+    const std::vector<float> orig = input_waveform_->samples();
+    const std::vector<float> proc = output_waveform_->samples();
+    const dsp::ShiftParams current = voice_panel_->params();
+    const dsp::Gender target = voice_panel_->gender();
+
+    spawn_worker([this, orig, proc, current, target] {
+        const dsp::AudioDiff diff = dsp::analyze_diff(orig, proc, 128);
+        dsp::ShiftParams corrected;
+        std::string reason;
+        const bool ok =
+            ai::suggest_correction(diff, current, target, corrected, reason);
+        QMetaObject::invokeMethod(this, [this, ok, corrected, reason] {
+            correcting_.store(false);
+            correct_button_->setEnabled(true);
+            if (!ok) {
+                status_label_->setText(QStringLiteral(
+                    "No AI backend responded - no correction (check the "
+                    "Settings tab)."));
+                return;
+            }
+            // Apply the suggested voice configuration.
+            voice_panel_->apply_shift(corrected);
+            denoise_check_->setChecked(corrected.enable_denoise);
+            correction_note_ = QStringLiteral("pitch %1 st, formants %2 st, "
+                                              "denoise %3%4")
+                                   .arg(corrected.pitch_semitones)
+                                   .arg(corrected.formant_semitones)
+                                   .arg(corrected.enable_denoise ? "on" : "off")
+                                   .arg(reason.empty()
+                                            ? QString()
+                                            : QStringLiteral(" (%1)")
+                                                  .arg(QString::fromStdString(reason)))
+                                   .toStdString();
+            status_label_->setText(QStringLiteral(
+                "AI correction applied - re-processing with the new voice..."));
+            // Re-run the pipeline with the corrected settings; the updated
+            // waveforms appear when the process finishes.
+            on_process();
+        }, Qt::QueuedConnection);
+    });
+}
+// Runs `fn` on a detached worker thread. The destructor waits for all such
+// threads to finish so detached work never touches a destroyed window.
+void MainWindow::spawn_worker(std::function<void()> fn) {
+    ++worker_threads_;
+    std::thread([this, fn = std::move(fn)] {
+        fn();
+        --worker_threads_;
+    }).detach();
+}
+
+// ---------------------------------------------------------------------------
 // Voice preview
 // ---------------------------------------------------------------------------
 void MainWindow::on_preview_text() {
+
     QString text = preview_text_edit_->toPlainText().trimmed();
     if (text.isEmpty()) {
         preview_status_->setText(QStringLiteral("Enter some example text first."));
@@ -366,7 +519,7 @@ void MainWindow::on_preview_text() {
     }
     preview_status_->setText(QStringLiteral("Playing preview..."));
     preview_button_->setEnabled(false);
-    std::thread([this, out, out_dev] {
+    spawn_worker([this, out, out_dev] {
         std::string perr;
         audio::play_buffer(out, out_dev, &perr);
         QMetaObject::invokeMethod(this, [this, perr] {
@@ -374,7 +527,7 @@ void MainWindow::on_preview_text() {
             preview_status_->setText(
                 perr.empty() ? QStringLiteral("Preview done.") : QString::fromStdString(perr));
         }, Qt::QueuedConnection);
-    }).detach();
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -399,13 +552,14 @@ void MainWindow::record_test(bool anonymized) {
     recording_.store(true);
     record_raw_button_->setEnabled(false);
     record_anon_button_->setEnabled(false);
+    const int seconds = test_seconds_spin_->value();
     mic_test_status_->setText(
-        QStringLiteral("Recording %1s...").arg(test_seconds_spin_->value()));
+        QStringLiteral("Recording %1s...").arg(seconds));
 
-    std::thread([this, in_dev, rate, anonymized] {
+    spawn_worker([this, in_dev, rate, anonymized, seconds] {
         std::string err;
         const AudioData rec =
-            audio::record_seconds(test_seconds_spin_->value(), in_dev, rate, &err);
+            audio::record_seconds(seconds, in_dev, rate, &err);
         if (anonymized && !rec.samples.empty()) {
             std::vector<double> in_d(rec.samples.begin(), rec.samples.end());
             dsp::ShiftParams p = live_voice_panel_->params();
@@ -437,7 +591,7 @@ void MainWindow::record_test(bool anonymized) {
             replay_button_->setEnabled(!mic_test_last_.samples.empty());
             mic_test_status_->setText(msg);
         }, Qt::QueuedConnection);
-    }).detach();
+    });
 }
 
 void MainWindow::on_replay() {
@@ -449,7 +603,7 @@ void MainWindow::on_replay() {
     }
     replay_button_->setEnabled(false);
     mic_test_status_->setText(QStringLiteral("Replaying..."));
-    std::thread([this, out_dev] {
+    spawn_worker([this, out_dev] {
         std::string err;
         audio::play_buffer(mic_test_last_, out_dev, &err);
         QMetaObject::invokeMethod(this, [this, err] {
@@ -457,7 +611,7 @@ void MainWindow::on_replay() {
             mic_test_status_->setText(err.empty() ? QStringLiteral("Replay done.")
                                                   : QString::fromStdString(err));
         }, Qt::QueuedConnection);
-    }).detach();
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -465,7 +619,13 @@ void MainWindow::on_replay() {
 // ---------------------------------------------------------------------------
 QWidget* MainWindow::build_live_tab() {
     auto* page = new QWidget;
-    auto* layout = new QVBoxLayout(page);
+    auto* page_layout = new QVBoxLayout(page);
+    page_layout->setContentsMargins(0, 0, 0, 0);
+    auto* scroll = new QScrollArea(page);
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    auto* inner = new QWidget;
+    auto* layout = new QVBoxLayout(inner);
 
     auto* dev_group = new QGroupBox(QStringLiteral("Devices"));
     auto* dev_form = new QFormLayout(dev_group);
@@ -576,7 +736,31 @@ QWidget* MainWindow::build_live_tab() {
 
     live_waveform_ = new Waveform;
     layout->addWidget(live_waveform_, 1);
+
+    scroll->setWidget(inner);
+    page_layout->addWidget(scroll);
     return page;
+}
+
+// ---------------------------------------------------------------------------
+// Settings tab
+// ---------------------------------------------------------------------------
+QWidget* MainWindow::build_settings_tab() {
+    settings_panel_ = new SettingsPanel;
+    connect(settings_panel_, &SettingsPanel::settingsChanged, this, [this] {
+        apply_ai_settings();
+        save_settings();
+    });
+    return settings_panel_;
+}
+
+void MainWindow::apply_ai_settings() {
+    if (!settings_panel_) return;
+    llm::set_config(settings_panel_->config());
+    // The voice panels show connectivity status; refresh them in the
+    // background so the new addresses take effect immediately.
+    if (voice_panel_) voice_panel_->refresh_ai_status();
+    if (live_voice_panel_) live_voice_panel_->refresh_ai_status();
 }
 
 void MainWindow::on_live_start_stop() {

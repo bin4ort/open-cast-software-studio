@@ -145,9 +145,24 @@ HybridResult run_hybrid(const AudioData& audio, dsp::Gender target,
 
 }  // namespace
 
+// The core pipeline; `run` wraps it so DSP exceptions become clean errors.
+JobResult run_impl(const JobOptions& opts, JobResult& res);
+
 JobResult run(const JobOptions& opts) {
     JobResult res;
+    try {
+        return run_impl(opts, res);
+    } catch (const std::exception& e) {
+        // The DSP pipeline throws on degenerate inputs (e.g. extreme shift
+        // factors or resampler failures). Surface those as clean errors to
+        // both the CLI and the GUI instead of terminating.
+        res.ok = false;
+        res.message = std::string("processing failed: ") + e.what();
+        return res;
+    }
+}
 
+JobResult run_impl(const JobOptions& opts, JobResult& res) {
     AudioData audio;
     {
         std::string err;
@@ -192,7 +207,10 @@ JobResult run(const JobOptions& opts) {
 
     if (opts.write_transcript && !opts.output.empty()) {
         res.transcript_path = opts.output + ".txt";
-        write_transcript(res.transcript_path, segments);
+        if (!write_transcript(res.transcript_path, segments)) {
+            res.message = "cannot write transcript '" + res.transcript_path + "'";
+            return res;
+        }
     }
 
     if (!opts.output.empty()) {

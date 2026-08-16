@@ -24,9 +24,11 @@ std::vector<std::pair<size_t, size_t>> detect_speech(
     const std::vector<double>& samples, int sample_rate, const VADParams& params) {
     std::vector<std::pair<size_t, size_t>> result;
     if (samples.empty() || sample_rate <= 0) return result;
+    VADParams p = params;
+    if (p.frame_ms <= 0) p.frame_ms = 30;
 
     const size_t frame_size =
-        static_cast<size_t>(params.frame_ms) * static_cast<size_t>(sample_rate) / 1000;
+        static_cast<size_t>(p.frame_ms) * static_cast<size_t>(sample_rate) / 1000;
     if (frame_size == 0) return result;
 
     std::vector<double> rms;
@@ -44,14 +46,14 @@ std::vector<std::pair<size_t, size_t>> detect_speech(
     const size_t noise_idx = std::min<size_t>(sorted.size() / 50, sorted.size() - 1);
     const double noise_floor = sorted[noise_idx];
     const double gate =
-        std::max(params.threshold, noise_floor * params.noise_margin);
+        std::max(p.threshold, noise_floor * p.noise_margin);
 
     std::vector<bool> voiced(rms.size());
     for (size_t i = 0; i < rms.size(); ++i) voiced[i] = rms[i] >= gate;
 
     // Hangover.
     const size_t hangover_frames = static_cast<size_t>(
-        std::lround(params.hangover_s * 1000.0 / params.frame_ms));
+        std::lround(p.hangover_s * 1000.0 / static_cast<double>(p.frame_ms)));
     size_t hangover = 0;
     std::vector<bool> speech(rms.size(), false);
     for (size_t i = 0; i < voiced.size(); ++i) {
@@ -67,7 +69,7 @@ std::vector<std::pair<size_t, size_t>> detect_speech(
     // Segment the speech mask.
     size_t i = 0;
     const size_t min_len = static_cast<size_t>(
-        params.min_speech_s * static_cast<double>(sample_rate));
+        p.min_speech_s * static_cast<double>(sample_rate));
     while (i < speech.size()) {
         if (!speech[i]) { ++i; continue; }
         size_t j = i;
@@ -81,11 +83,15 @@ std::vector<std::pair<size_t, size_t>> detect_speech(
 }
 
 StreamVAD::StreamVAD(int sample_rate, VADParams params)
-    : sample_rate_(sample_rate), params_(params) {
-    frame_size_ = static_cast<size_t>(params.frame_ms) * sample_rate / 1000;
+    : sample_rate_(sample_rate > 0 ? sample_rate : 48000), params_(params) {
+    if (params_.frame_ms <= 0) params_.frame_ms = 30;
+    frame_size_ = static_cast<size_t>(params_.frame_ms) * sample_rate_ / 1000;
     if (frame_size_ == 0) frame_size_ = 1;
-    hangover_frames_ = static_cast<size_t>(
-        std::lround(params.hangover_s * 1000.0 / params.frame_ms));
+    // Mono accumulator slot (one per channel; currently a single channel).
+    frame_acc_.assign(1, 0.0);
+    hangover_frames_ = static_cast<size_t>(std::lround(
+        params_.hangover_s * static_cast<double>(sample_rate_) /
+        static_cast<double>(frame_size_)));
 }
 
 void StreamVAD::roll_frame() {

@@ -7,9 +7,7 @@
 #include <string>
 #include <vector>
 
-#ifdef OCS_HAVE_FFMPEG
 #include <unistd.h>
-#endif
 
 #include "audio/fileio.h"
 
@@ -85,10 +83,14 @@ bool synthesize(const std::string& text, dsp::Gender gender,
         std::string tmpl = (dir / "ocs_tts_XXXXXX.wav").string();
         std::vector<char> buf(tmpl.begin(), tmpl.end());
         buf.push_back('\0');
-#ifdef OCS_HAVE_FFMPEG
+        // mkstemps guarantees a unique, non-predictable name regardless of
+        // whether ffmpeg support is compiled in.
         const int fd = mkstemps(buf.data(), 4);
-        if (fd >= 0) close(fd);
-#endif
+        if (fd < 0) {
+            err = "failed to create temp file";
+            return false;
+        }
+        (void)close(fd); /* mkstemp fd cleanup: failure is not actionable */
         tmp = buf.data();
     } catch (...) {
         err = "failed to create temp file";

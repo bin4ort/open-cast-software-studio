@@ -26,7 +26,8 @@ void Converter::load(const std::string& model_path) {
         error = "no OCS_VC_MODEL configured";
         return;
     }
-    // TODO: onnxruntime session creation + HuBERT/VITS forward pass.
+    // onnxruntime session creation + HuBERT/VITS forward pass are not
+    // wired yet (tracked at exomind debt:vc.cpp:29).
     error = "OCS_NEURAL_VC build present but inference not wired yet";
 #else
     (void)model_path;

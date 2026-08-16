@@ -16,10 +16,13 @@
 #include <QStandardPaths>
 #include <QVBoxLayout>
 
+#include <atomic>
 #include <cctype>
+#include <chrono>
 #include <fstream>
 #include <map>
 #include <string>
+#include <thread>
 
 #include "ai/llm.h"
 #include "dsp/phase_vocoder.h"
@@ -66,11 +69,11 @@ dsp::ShiftParams heuristic_from_prompt(const QString& text) {
     p.formant_semitones = formant;
     return p;
 }
-
 }  // namespace
 
 VoicePanel::VoicePanel(bool live, QWidget* parent)
     : QWidget(parent), live_(live) {
+
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
 
@@ -195,35 +198,82 @@ void VoicePanel::on_gender_changed(int index) {
 void VoicePanel::on_source_changed(int index) {
     const bool ai = index == 1;
     ai_panel_->setVisible(ai);
+    if (ai) refresh_ai_status();
     emit changed();
 }
 
+// Runs a blocking AI/library call on a background thread, then applies the
+// result back on the GUI thread. The destructor waits for in-flight workers
+// so a closing window is never touched after destruction.
+template <typename Fn>
+void VoicePanel::run_worker(Fn fn) {
+    ++worker_threads_;
+    std::thread([this, fn = std::move(fn)] {
+        fn();
+        --worker_threads_;
+    }).detach();
+}
+
 void VoicePanel::on_translate() {
+    if (translating_.load()) return;
     const QString prompt = prompt_edit_->toPlainText();
-    dsp::ShiftParams p;
-    bool llm_used = false;
-    if (llm::llm_available()) {
-        llm_used = llm::translate_prompt(prompt.toStdString(), p);
+    if (prompt.trimmed().isEmpty()) {
+        ai_status_->setText(QStringLiteral("Enter a voice description first."));
+        return;
     }
-    if (!llm_used) {
-        p = heuristic_from_prompt(prompt);
+    translating_.store(true);
+    translate_button_->setEnabled(false);
+    ai_status_->setText(QStringLiteral("Contacting AI backend..."));
+    run_worker([this, prompt] {
+        // Only captured data is used here; widgets are touched solely via
+        // the queued callback below (prompt is a copy).
+        dsp::ShiftParams p;
+        bool llm_used = false;
+        if (llm::llm_available()) {
+            llm_used = llm::translate_prompt(prompt.toStdString(), p);
+        }
+        if (!llm_used) p = heuristic_from_prompt(prompt);
+        const std::string backend = llm::backend_name();
+        const std::string status = llm::status_text();
+        QMetaObject::invokeMethod(this, [this, p, llm_used, backend, status] {
+            applying_profile_ = true;
+            pitch_spin_->setValue(p.pitch_semitones);
+            formant_spin_->setValue(p.formant_semitones);
+            applying_profile_ = false;
+            prompt_translated_ = true;
+            ai_status_->setText(llm_used
+                                    ? QStringLiteral("AI translated (%1): pitch "
+                                                     "%2 st, formants %3 st")
+                                          .arg(QString::fromStdString(backend))
+                                          .arg(p.pitch_semitones)
+                                          .arg(p.formant_semitones)
+                                    : QStringLiteral("Keyword match (no LLM "
+                                                     "response): pitch %1 st, "
+                                                     "formants %2 st")
+                                          .arg(p.pitch_semitones)
+                                          .arg(p.formant_semitones));
+            ai_status_->setToolTip(QString::fromStdString(status));
+            translating_.store(false);
+            translate_button_->setEnabled(true);
+            emit changed();
+        }, Qt::QueuedConnection);
+    });
+}
+
+void VoicePanel::refresh_ai_status() {
+    ai_status_->setText(QStringLiteral("Checking AI connectivity..."));
+    run_worker([this] {
+        const std::string status = llm::status_text();
+        QMetaObject::invokeMethod(this, [this, status] {
+            ai_status_->setText(QString::fromStdString(status));
+        }, Qt::QueuedConnection);
+    });
+}
+
+VoicePanel::~VoicePanel() {
+    while (worker_threads_.load() > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-    applying_profile_ = true;
-    pitch_spin_->setValue(p.pitch_semitones);
-    formant_spin_->setValue(p.formant_semitones);
-    applying_profile_ = false;
-    prompt_translated_ = true;
-    ai_status_->setText(llm_used
-                            ? QStringLiteral("AI translated (%1): pitch %2 st, "
-                                             "formants %3 st")
-                                  .arg(QString::fromStdString(llm::backend_name()))
-                                  .arg(p.pitch_semitones)
-                                  .arg(p.formant_semitones)
-                            : QStringLiteral("Keyword match (no local LLM): "
-                                             "pitch %1 st, formants %2 st")
-                                  .arg(p.pitch_semitones)
-                                  .arg(p.formant_semitones));
-    emit changed();
 }
 
 void VoicePanel::on_preset_changed(int index) {

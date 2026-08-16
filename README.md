@@ -9,6 +9,8 @@ Qt6 GUI.
 
 **License: GPL-3.0-only** (see [LICENSE](LICENSE)).
 
+See [CHANGELOG.md](CHANGELOG.md) for the release history.
+
 ## Features
 
 - **Batch transformation** — shift the pitch and formants of all speech in an
@@ -17,12 +19,21 @@ Qt6 GUI.
   pitch/formant control, and an AI path that maps a natural-language voice
   description ("young woman from London, slightly deep") onto the settings via
   a local LLM (llama.cpp / Ollama) with offline keyword matching as fallback.
+- **AI connectivity settings** — point the app at any Ollama or llama.cpp
+  server (localhost, a container, or a remote machine), test the connection,
+  and optionally auto- or manually launch the backend from a chosen working
+  directory.
 - **Hybrid mode** — transcribes the recording, rewrites gendered
   self-references toward the target gender (rules engine, or a local LLM when
   available), globally shifts the voice, and re-voices the rewritten segments
   with TTS in the target voice.
 - **Selective re-voicing** — when a transcription is available, only the
   segments containing names/PII are re-synthesized; the rest stays natural.
+- **Waveform compare & AI correction** — the original and processed
+  recordings are shown as two graphs; a Compare button overlaps them
+  (vivid main curve + grayscale overlay) to spot differences, and
+  "Correct with AI" feeds the waveform difference to the LLM, which suggests
+  corrected voice settings that are applied automatically.
 - **Transcript extraction & redaction** — optional speech-to-text via
   `whisper-cpp`, with regex + heuristic redaction of emails, phone numbers,
   URLs and personal names.
@@ -37,6 +48,17 @@ Qt6 GUI.
   deanonymization).
 - **Native Qt6 GUI** (`ocs_studio_gui`) and a full-featured CLI
   (`ocs_studio`).
+- **Logo** — vector logos live in `assets/` (all square 1:1): a vivid
+  gradient "processed" chirp with per-cycle dynamics and a grayscale
+  "original" echo that tries to follow it, drifts out of sync and fails
+  (`logo.svg`); framed variants with round frames (`logo-framed*.svg`, used
+  for the window and desktop icons);
+  light/dark theme versions (`logo-light.svg`, `logo-dark.svg`, picked
+  automatically by the GUI from the system theme); a multicolored version
+  (`logo-colorful.svg`); a monochrome mark (`logo-mono.svg`); a
+  theme-adaptive web version (`logo-adaptive.svg`); and the original tile
+  design (`logo-tile.svg`, kept for a possible mobile port). All variants
+  are generated from `assets/generate_logo.py`.
 - **CLI install wizard** (`install/install.py`) with license acceptance,
   dependency installation (auto or manual), optional-feature tools and
   uninstall.
@@ -138,14 +160,48 @@ ocs_studio gui
 
 - **Process file** — pick an audio file, set the target voice (gender presets,
   DSP sliders, or an AI prompt), choose Global / Selective / Hybrid mode, and
-  process. Input and output waveforms are shown, plus a voice preview that
-  reads an example text in the configured voice.
+  process. Input and output waveforms are shown (with a **Compare** button
+  that overlaps both graphs — the main recording stays vivid, the other is
+  drawn in grayscale so differences stand out), plus a voice preview that
+  reads an example text in the configured voice. A **Correct with AI** button
+  analyzes the waveform difference between the two recordings, asks the LLM
+  for corrected voice settings and re-processes automatically.
 - **Live masking** — choose mic/speaker devices, set the voice, then Start.
   Your voice is masked in real time (optional VAD-based muting and dry run).
   Route the output to the speaker, a **virtual mic** (select it in Discord,
   streaming, etc.), or both. A mic test records raw and anonymized samples and
   lets you replay them.
 - **Transcript** — paste a transcript and redact names / emails / phones.
+- **Settings** — AI backend connection: Ollama and llama.cpp server addresses
+  (so the AI can run on a second computer or a remote server), a "Test
+  connection" button, and backend launch controls: an auto-launch option
+  (starts the backend automatically when the app needs it and nothing is
+  listening), a launch command with a working directory, and a manual
+  "Launch now" button. Output from a launched backend is logged to
+  `/tmp/ocs_ai_launch.log`.
+
+## AI connectivity
+
+The AI features (voice description translation, phrase rewriting, live AI
+regeneration) talk to either an **Ollama** server (default
+`http://localhost:11434`) or a **llama.cpp** server (default
+`http://localhost:8080`). The GUI's Settings tab sets these addresses — use
+any host:port, e.g. `http://192.168.1.50:11434` for another machine on your
+LAN. "Test connection" probes both endpoints.
+
+The CLI reads the same settings from the environment:
+
+```sh
+export OCS_OLLAMA_URL=http://192.168.1.50:11434   # optional
+export OCS_LLAMA_URL=http://192.168.1.50:8080     # optional
+export OCS_AI_LAUNCH_CMD="ollama serve"           # optional launcher
+export OCS_AI_LAUNCH_DIR=/opt/ai                  # optional working dir
+export OCS_AI_AUTO_LAUNCH=1                       # optional auto-start
+ocs_studio info        # shows which backend is reachable
+```
+
+When no backend is reachable, `--mode hybrid` rewriting and voice-prompt
+translation fall back to the built-in rules/keyword engine.
 
 ## Transcription
 
@@ -165,14 +221,14 @@ src/
 │                             #   cepstral formant shifter, gender profiles,
 │                             #   spectral denoise, VAD, pipeline
 ├── ai/                       # LLM wrapper (llama.cpp/Ollama), gendered-phrase
-│                             #   rewriter, experimental neural VC interface
+│                             #   rewriter, live regeneration, neural VC stub
 ├── transcribe/               # whisper subprocess wrapper (JSON segments)
 ├── anonymize/                # regex + heuristic redactor
 ├── tts.cpp                   # espeak-ng text-to-speech wrapper
 ├── processing/               # batch job orchestrator (global/selective/hybrid)
 ├── util/                     # tiny JSON parser (no external deps)
-└── ui/                       # Qt6 main window, waveform, live engine,
-                              #   voice panel
+└── ui/                       # Qt6 main window, waveform, live engine, voice
+                              #   panel, GUI entry points (gui_main/gui_entry)
 ```
 
 All DSP is implemented in-house on top of system libraries; there are no
@@ -187,5 +243,15 @@ ctest --test-dir build --output-on-failure
 ```
 
 Covers FFT/STFT round trips, pitch-shift accuracy (440 Hz -> expected),
-the streaming live shifter, gender profiles, phrase rewriting and transcript
-redaction.
+the streaming live shifter, gender profiles, phrase rewriting, transcript
+redaction, VAD (streaming + offline), the ring buffer (including wrap-around
+and full-buffer behavior), the JSON parser, waveform diff analysis and AI
+correction response parsing. Run the suite under AddressSanitizer/UBsan for
+audio/DSP work:
+
+```sh
+cmake -B build-asan -S . \
+    -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -O1"
+cmake --build build-asan -j$(nproc)
+ctest --test-dir build-asan --output-on-failure
+```

@@ -26,9 +26,29 @@ import sys
 from pathlib import Path
 
 PROJECT = "ocs_studio"
-VERSION = "0.2.0"
 CLI_BIN = "ocs_studio"
 GUI_BIN = "ocs_studio_gui"
+
+
+def project_version() -> str:
+    """Reads the version from CMakeLists.txt so it can never drift."""
+    try:
+        lines = (
+            Path(__file__).resolve().parent.parent / "CMakeLists.txt"
+        ).read_text().splitlines()
+        for i, line in enumerate(lines):
+            if line.startswith("project("):
+                # The version may sit on the same line or the next few.
+                for j in range(i, min(i + 4, len(lines))):
+                    m = re.search(r"VERSION\s+(\S+)", lines[j])
+                    if m:
+                        return m.group(1)
+    except OSError:
+        pass
+    return "unknown"
+
+
+VERSION = project_version()
 
 GPL_SUMMARY = f"""\
 {PROJECT} {VERSION} is free software, licensed under the GNU General Public
@@ -349,6 +369,10 @@ def step_optional_dependencies() -> None:
 
 
 def step_build() -> str:
+    if not (Path.cwd() / "CMakeLists.txt").exists():
+        say("error: CMakeLists.txt not found. Run this wizard from the OCS "
+            "Studio source directory.")
+        sys.exit(1)
     say("Configuring with CMake...")
     build_dir = Path.cwd() / "build"
     run(["cmake", "-B", str(build_dir), "-S", str(Path.cwd()),
@@ -388,12 +412,19 @@ def step_install(build_dir: str) -> None:
             shutil.copy(manifest_src, manifest_dst / "install_manifest.txt")
 
     if cmd_exists(GUI_BIN) or (Path(build_dir) / GUI_BIN).exists():
-        if confirm("Create a desktop menu entry for the GUI?", default=True):
+        # Only create the desktop entry when this build actually produced the
+        # GUI (a stale ocs_studio_gui on PATH does not count).
+        if not (Path(build_dir) / GUI_BIN).exists():
+            say("  note: a GUI binary exists on PATH but was not built here; "
+                "skipping the desktop entry.")
+        elif confirm("Create a desktop menu entry for the GUI?", default=True):
             gui_bin = str(Path(prefix) / "bin" / GUI_BIN)
+            icon = str(Path(prefix) / "share" / PROJECT / "logo-framed.svg")
             desktop = (
                 f"[Desktop Entry]\nType=Application\nName={PROJECT}\n"
                 f"Comment=Voice anonymization toolkit\n"
-                f"Exec={gui_bin}\nTerminal=false\nCategories=AudioVideo;Audio;\n"
+                f"Exec={gui_bin}\nIcon={icon}\nTerminal=false\n"
+                f"Categories=AudioVideo;Audio;\n"
             )
             entries = Path.home() / ".local/share/applications"
             entries.mkdir(parents=True, exist_ok=True)

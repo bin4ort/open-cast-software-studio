@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Open Cast Software Studio contributors
+#include "../common.h"
 #include "transcribe/whisper.h"
 
 #include <cstdlib>
@@ -47,8 +48,10 @@ std::string find_whisper_model() {
     }
     const char* home = std::getenv("HOME");
     if (!home) return {};
-    for (const auto& sub : {"/.local/share/ocs_studio/models",
-                            "/.config/ocs_studio/models"}) {
+    // Note: the sub-paths are relative on purpose; a leading '/' would make
+    // operator/ discard $HOME and search from the filesystem root.
+    for (const auto& sub : {".local/share/ocs_studio/models",
+                            ".config/ocs_studio/models"}) {
         const auto dir = std::filesystem::path(home) / sub;
         std::error_code ec;
         if (!std::filesystem::is_directory(dir, ec)) continue;
@@ -71,6 +74,11 @@ bool transcribe(const std::string& input_path, const WhisperConfig& cfg,
         return false;
     }
 
+    // Auto-detect a model from the standard locations when the caller did not
+    // provide one (the GUI passes its picker; the CLI reads --model).
+    std::string model = cfg.model;
+    if (model.empty()) model = find_whisper_model();
+
     const auto base = std::filesystem::path(input_path).filename().string();
     const auto outbase =
         (std::filesystem::temp_directory_path() / ("ocs_whisper_" + base)).string();
@@ -84,15 +92,17 @@ bool transcribe(const std::string& input_path, const WhisperConfig& cfg,
 
     std::string cmd;
     if (is_cpp_cli) {
-        cmd = "\"" + binary + "\" -f \"" + input_path + "\" -oj -of \"" +
-              outbase + "\"";
-        if (!cfg.model.empty()) cmd += " -m \"" + cfg.model + "\"";
-        if (!cfg.language.empty()) cmd += " -l " + cfg.language;
+        cmd = ocs::shell_q(binary) + " -f " + ocs::shell_q(input_path) +
+              " -oj -of " + ocs::shell_q(outbase);
+        if (!model.empty()) cmd += " -m " + ocs::shell_q(model);
+        if (!cfg.language.empty())
+            cmd += " -l " + ocs::shell_q(cfg.language);
     } else {
-        cmd = "\"" + binary + "\" \"" + input_path +
-              "\" --output_format json --output_dir \"" +
-              std::filesystem::temp_directory_path().string() + "\"";
-        if (!cfg.language.empty()) cmd += " --language " + cfg.language;
+        cmd = ocs::shell_q(binary) + " " + ocs::shell_q(input_path) +
+              " --output_format json --output_dir " +
+              ocs::shell_q(std::filesystem::temp_directory_path().string());
+        if (!cfg.language.empty())
+            cmd += " --language " + ocs::shell_q(cfg.language);
     }
     cmd += " 2>/dev/null";
 
@@ -141,7 +151,11 @@ bool transcribe(const std::string& input_path, const WhisperConfig& cfg,
                 if (seg.end <= seg.start) continue;
                 segments.push_back(std::move(seg));
             }
-            return !segments.empty();
+            if (segments.empty()) {
+                err = "whisper returned no segments (silent or unrecognized audio)";
+                return false;
+            }
+            return true;
         }
         // whisper.cpp style: transcription[] with offsets (milliseconds).
         if (root.contains("transcription") && root.at("transcription").is_array()) {
@@ -159,7 +173,11 @@ bool transcribe(const std::string& input_path, const WhisperConfig& cfg,
                 if (seg.end <= seg.start) continue;
                 segments.push_back(std::move(seg));
             }
-            return !segments.empty();
+            if (segments.empty()) {
+                err = "whisper returned no segments (silent or unrecognized audio)";
+                return false;
+            }
+            return true;
         }
         err = "unexpected whisper JSON (no segments/transcription array)";
         return false;
@@ -167,7 +185,6 @@ bool transcribe(const std::string& input_path, const WhisperConfig& cfg,
         err = std::string("failed to parse whisper JSON: ") + e.what();
         return false;
     }
-    return !segments.empty();
 }
 
 }  // namespace ocs::transcribe

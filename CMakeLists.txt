@@ -44,10 +44,12 @@ add_library(ocs_core STATIC
   src/dsp/denoise.cpp
   src/dsp/vad.cpp
   src/dsp/pipeline.cpp
+  src/dsp/compare.cpp
   src/transcribe/whisper.cpp
   src/anonymize/redactor.cpp
   src/ai/rewriter.cpp
   src/ai/llm.cpp
+  src/ai/correction.cpp
   src/ai/vc.cpp
   src/ai/regen.cpp
   src/tts.cpp
@@ -107,14 +109,27 @@ if(OCS_GUI)
       src/ui/waveform.cpp
       src/ui/livepanel.cpp
       src/ui/voicepanel.cpp
+      src/ui/settingspanel.cpp
+      src/ui/gui_main.cpp
     )
     target_include_directories(ocs_gui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(ocs_gui PUBLIC ocs_core Qt6::Widgets)
     set_target_properties(ocs_gui PROPERTIES AUTOMOC ON)
 
-    add_executable(ocs_studio_gui src/ui/gui_main.cpp)
+    add_executable(ocs_studio_gui src/ui/gui_entry.cpp)
     target_link_libraries(ocs_studio_gui PRIVATE ocs_gui)
     set_target_properties(ocs_studio_gui PROPERTIES OUTPUT_NAME ocs_studio_gui)
+
+    # The CLI also gets the `gui` subcommand (ocs_studio gui).
+    target_sources(ocs_studio PRIVATE src/gui_launch.cpp)
+    target_link_libraries(ocs_studio PRIVATE ocs_gui)
+
+    # App icon: load the SVG logo at runtime when QtSvg is available.
+    find_package(Qt6 QUIET COMPONENTS Svg)
+    if(Qt6Svg_FOUND)
+      target_link_libraries(ocs_gui PUBLIC Qt6::Svg)
+      target_compile_definitions(ocs_gui PRIVATE OCS_HAVE_SVG_ICON=1)
+    endif()
   else()
     message(WARNING "Qt6 Widgets not found - building CLI only. Install qt6-base-dev/qt6-base to enable the GUI.")
   endif()
@@ -134,6 +149,20 @@ if(OCS_TESTS)
     target_link_libraries(ocs_tests PRIVATE ocs_core)
     target_compile_options(ocs_tests PRIVATE -Wall -Wextra)
     add_test(NAME ocs_tests COMMAND ocs_tests)
+
+    # GUI widget tests (offscreen): voice panel source switching etc.
+    if(OCS_GUI)
+      find_package(Qt6 QUIET COMPONENTS Widgets Test)
+      if(Qt6Test_FOUND)
+        add_executable(ocs_gui_tests tests/ui_voicepanel_test.cpp)
+        target_include_directories(ocs_gui_tests PRIVATE tests)
+        target_link_libraries(ocs_gui_tests PRIVATE ocs_gui Qt6::Test)
+        target_compile_options(ocs_gui_tests PRIVATE -Wall -Wextra)
+        add_test(NAME ocs_gui_tests COMMAND ocs_gui_tests)
+        set_tests_properties(ocs_gui_tests PROPERTIES
+          ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+      endif()
+    endif()
   endif()
 endif()
 
@@ -147,3 +176,15 @@ if(TARGET ocs_studio_gui)
   install(TARGETS ocs_studio_gui
           RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
+install(FILES
+          assets/logo.svg
+          assets/logo-light.svg
+          assets/logo-dark.svg
+          assets/logo-framed.svg
+          assets/logo-framed-light.svg
+          assets/logo-framed-dark.svg
+          assets/logo-colorful.svg
+          assets/logo-mono.svg
+          assets/logo-adaptive.svg
+          assets/logo-tile.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME})

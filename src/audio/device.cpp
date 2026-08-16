@@ -220,7 +220,7 @@ void close_live(LiveStream& ls) {
 }
 
 void play_buffer(const AudioData& data, int out_device, std::string* err) {
-    if (data.samples.empty() || out_device < 0) {
+    if (data.samples.empty() || out_device < 0 || data.sample_rate <= 0) {
         if (err) *err = "nothing to play";
         return;
     }

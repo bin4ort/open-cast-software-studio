@@ -27,6 +27,9 @@ namespace ocs::cli {
 
 namespace {
 
+int g_argc = 0;
+char** g_argv = nullptr;
+
 void print_version() {
     std::printf("ocs_studio %s (GPL-3.0-only)\n", OCS_VERSION);
     std::printf("Built with g++ %d.%d.%d\n", __GNUC__, __GNUC_MINOR__,
@@ -45,6 +48,7 @@ void print_version() {
     std::printf("local LLM: %s\n",
                 llm::llm_available() ? llm::backend_name().c_str()
                                      : "not detected");
+    std::printf("  %s\n", llm::status_text().c_str());
 }
 
 void print_help() {
@@ -119,6 +123,54 @@ struct Argv {
     }
 };
 
+// Consumes the value of `opt`, reporting a clear error when it is missing.
+const char* opt_value(Argv& a, const char* opt) {
+    const char* v = a.next();
+    if (*v == '\0') {
+        std::fprintf(stderr, "error: option %s requires a value\n", opt);
+        return nullptr;
+    }
+    return v;
+}
+
+// String option variant that assigns directly into a std::string.
+bool opt_string(Argv& a, const char* opt, std::string& out) {
+    const char* v = opt_value(a, opt);
+    if (!v) return false;
+    out = v;
+    return true;
+}
+
+// Parses a double option value, rejecting non-numeric/NaN/inf input.
+bool opt_double(Argv& a, const char* opt, double& out) {
+    const char* v = opt_value(a, opt);
+    if (!v) return false;
+    char* end = nullptr;
+    const double d = std::strtod(v, &end);
+    if (end == v || *end != '\0' || !std::isfinite(d)) {
+        std::fprintf(stderr, "error: option %s requires a numeric value\n", opt);
+        return false;
+    }
+    out = d;
+    return true;
+}
+
+// Parses an integer option value (rejects garbage and non-positive values
+// when `positive` is set).
+bool opt_int(Argv& a, const char* opt, long& out, bool positive) {
+    const char* v = opt_value(a, opt);
+    if (!v) return false;
+    char* end = nullptr;
+    const long d = std::strtol(v, &end, 10);
+    if (end == v || *end != '\0' || (positive && d <= 0)) {
+        std::fprintf(stderr, "error: option %s requires an %s value\n", opt,
+                     positive ? "integer > 0" : "integer");
+        return false;
+    }
+    out = d;
+    return true;
+}
+
 // ---------------------------------------------------------------------------
 // process
 // ---------------------------------------------------------------------------
@@ -143,24 +195,34 @@ int cmd_process(Argv& a) {
 
     while (!a.done()) {
         const char* arg = a.peek();
-        if (std::strcmp(arg, "-o") == 0) { a.next(); opts.output = a.next(); }
-        else if (std::strcmp(arg, "--preset") == 0) { a.next(); preset = a.next(); }
-        else if (std::strcmp(arg, "--pitch") == 0) { a.next(); shift.pitch_semitones = std::atof(a.next()); pitch_set = true; }
-        else if (std::strcmp(arg, "--formant") == 0) { a.next(); shift.formant_semitones = std::atof(a.next()); formant_set = true; }
-        else if (std::strcmp(arg, "--mode") == 0) { a.next(); mode = a.next(); }
-        else if (std::strcmp(arg, "--gender") == 0) { a.next(); gender = a.next(); }
+        if (std::strcmp(arg, "-o") == 0) { a.next(); if (!opt_string(a, "-o", opts.output)) return 1; }
+        else if (std::strcmp(arg, "--preset") == 0) { a.next(); if (!opt_string(a, "--preset", preset)) return 1; }
+        else if (std::strcmp(arg, "--pitch") == 0) { a.next(); if (!opt_double(a, "--pitch", shift.pitch_semitones)) return 1; pitch_set = true; }
+        else if (std::strcmp(arg, "--formant") == 0) { a.next(); if (!opt_double(a, "--formant", shift.formant_semitones)) return 1; formant_set = true; }
+        else if (std::strcmp(arg, "--mode") == 0) { a.next(); if (!opt_string(a, "--mode", mode)) return 1; }
+        else if (std::strcmp(arg, "--gender") == 0) { a.next(); if (!opt_string(a, "--gender", gender)) return 1; }
         else if (std::strcmp(arg, "--transcribe") == 0) { a.next(); transcribe = true; }
         else if (std::strcmp(arg, "--write-transcript") == 0) { a.next(); write_transcript = true; }
         else if (std::strcmp(arg, "--synthetic") == 0) { a.next(); synthetic = true; }
-        else if (std::strcmp(arg, "--replacement") == 0) { a.next(); replacement = a.next(); }
+        else if (std::strcmp(arg, "--replacement") == 0) { a.next(); if (!opt_string(a, "--replacement", replacement)) return 1; }
         else if (std::strcmp(arg, "--denoise") == 0) { a.next(); shift.enable_denoise = true; }
-        else if (std::strcmp(arg, "--whisper") == 0) { a.next(); opts.whisper_binary = a.next(); }
-        else if (std::strcmp(arg, "--model") == 0) { a.next(); opts.whisper_model = a.next(); }
-        else if (std::strcmp(arg, "--lang") == 0) { a.next(); opts.whisper_language = a.next(); }
+        else if (std::strcmp(arg, "--whisper") == 0) { a.next(); if (!opt_string(a, "--whisper", opts.whisper_binary)) return 1; }
+        else if (std::strcmp(arg, "--model") == 0) { a.next(); if (!opt_string(a, "--model", opts.whisper_model)) return 1; }
+        else if (std::strcmp(arg, "--lang") == 0) { a.next(); if (!opt_string(a, "--lang", opts.whisper_language)) return 1; }
         else {
             std::fprintf(stderr, "error: unknown option '%s'\n", arg);
             return 1;
         }
+    }
+
+    // DSP shifts outside the supported range make the vocoder unstable
+    // (extreme stretch factors) or throw; reject them up front like the GUI
+    // does (sliders are limited to +-24 st).
+    if (shift.pitch_semitones < -24.0 || shift.pitch_semitones > 24.0 ||
+        shift.formant_semitones < -24.0 || shift.formant_semitones > 24.0) {
+        std::fprintf(stderr,
+                     "error: --pitch/--formant must be within [-24, 24] semitones\n");
+        return 1;
     }
 
     if (!preset.empty()) {
@@ -226,9 +288,9 @@ int cmd_process(Argv& a) {
 // live
 // ---------------------------------------------------------------------------
 int cmd_live(Argv& a) {
-    int in_dev = -1, out_dev = -1;
-    int rate = 0;
-    size_t frames = 1024;
+    long in_dev = -1, out_dev = -1;
+    long rate = 0;
+    long frames = 1024;
     bool mute_silence = false;
     bool dry = false;
     dsp::ShiftParams shift;
@@ -236,18 +298,23 @@ int cmd_live(Argv& a) {
 
     while (!a.done()) {
         const char* arg = a.peek();
-        if (std::strcmp(arg, "--in") == 0) { a.next(); in_dev = std::atoi(a.next()); }
-        else if (std::strcmp(arg, "--out") == 0) { a.next(); out_dev = std::atoi(a.next()); }
-        else if (std::strcmp(arg, "--preset") == 0) { a.next(); preset = a.next(); }
-        else if (std::strcmp(arg, "--pitch") == 0) { a.next(); shift.pitch_semitones = std::atof(a.next()); }
-        else if (std::strcmp(arg, "--rate") == 0) { a.next(); rate = std::atoi(a.next()); }
-        else if (std::strcmp(arg, "--frames") == 0) { a.next(); frames = static_cast<size_t>(std::atoi(a.next())); }
+        if (std::strcmp(arg, "--in") == 0) { a.next(); if (!opt_int(a, "--in", in_dev, false)) return 1; }
+        else if (std::strcmp(arg, "--out") == 0) { a.next(); if (!opt_int(a, "--out", out_dev, false)) return 1; }
+        else if (std::strcmp(arg, "--preset") == 0) { a.next(); if (!opt_string(a, "--preset", preset)) return 1; }
+        else if (std::strcmp(arg, "--pitch") == 0) { a.next(); if (!opt_double(a, "--pitch", shift.pitch_semitones)) return 1; }
+        else if (std::strcmp(arg, "--rate") == 0) { a.next(); if (!opt_int(a, "--rate", rate, false)) return 1; }
+        else if (std::strcmp(arg, "--frames") == 0) { a.next(); if (!opt_int(a, "--frames", frames, true)) return 1; }
         else if (std::strcmp(arg, "--mute-silence") == 0) { a.next(); mute_silence = true; }
         else if (std::strcmp(arg, "--dry") == 0) { a.next(); dry = true; }
         else {
             std::fprintf(stderr, "error: unknown option '%s'\n", arg);
             return 1;
         }
+    }
+
+    if (shift.pitch_semitones < -24.0 || shift.pitch_semitones > 24.0) {
+        std::fprintf(stderr, "error: --pitch must be within [-24, 24] semitones\n");
+        return 1;
     }
 
     if (!audio::pa_init()) {
@@ -276,15 +343,25 @@ int cmd_live(Argv& a) {
 
     audio::LiveStream ls;
     std::string err;
-    if (!audio::open_live(ls, in_dev, out_dev, rate, frames, err)) {
+    if (!audio::open_live(ls, in_dev, out_dev, static_cast<int>(rate),
+                          static_cast<size_t>(frames), err)) {
         std::fprintf(stderr, "error: %s\n", err.c_str());
         audio::pa_shutdown();
         return 1;
     }
 
     const double factor = dsp::semitones_to_ratio(shift.pitch_semitones);
-    dsp::PitchShifter shifter(2048, 4, dry ? 1.0 : factor);
-    dsp::StreamVAD vad(rate);
+    std::unique_ptr<dsp::PitchShifter> shifter;
+    try {
+        shifter = std::make_unique<dsp::PitchShifter>(2048, 4,
+                                                      dry ? 1.0 : factor);
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "error: %s\n", e.what());
+        audio::close_live(ls);
+        audio::pa_shutdown();
+        return 1;
+    }
+    dsp::StreamVAD vad(static_cast<int>(rate));
 
     std::atomic<bool> stop{false};
     std::thread worker([&] {
@@ -306,7 +383,7 @@ int cmd_live(Argv& a) {
                     ls.output_rb.write(block_out.data(), got);
                 } else {
                     const size_t made =
-                        shifter.process(block_in.data(), got, block_out.data(), got);
+                        shifter->process(block_in.data(), got, block_out.data(), got);
                     ls.output_rb.write(block_out.data(), made);
                 }
             } else {
@@ -326,11 +403,12 @@ int cmd_live(Argv& a) {
     }
 
     const auto in_devs = audio::list_devices();
-    std::printf("live masking active (mic %d -> %s, speaker %d). pitch %.1f st."
+    std::printf("live masking active (mic %ld -> %s, speaker %ld). pitch %.1f st."
                 " Press Ctrl+C to stop.\n",
                 in_dev,
-                in_dev < static_cast<int>(in_devs.size()) ? in_devs[in_dev].name.c_str()
-                                                          : "?",
+                in_dev >= 0 && in_dev < static_cast<long>(in_devs.size())
+                    ? in_devs[in_dev].name.c_str()
+                    : "?",
                 out_dev, shift.pitch_semitones);
 
     std::this_thread::sleep_for(std::chrono::hours(24));
@@ -358,11 +436,11 @@ int cmd_transcribe(Argv& a) {
 
     while (!a.done()) {
         const char* arg = a.peek();
-        if (std::strcmp(arg, "-o") == 0) { a.next(); output = a.next(); }
+        if (std::strcmp(arg, "-o") == 0) { a.next(); if (!opt_string(a, "-o", output)) return 1; }
         else if (std::strcmp(arg, "--redact") == 0) { a.next(); redact = true; }
-        else if (std::strcmp(arg, "--whisper") == 0) { a.next(); wcfg.binary = a.next(); }
-        else if (std::strcmp(arg, "--model") == 0) { a.next(); wcfg.model = a.next(); }
-        else if (std::strcmp(arg, "--lang") == 0) { a.next(); wcfg.language = a.next(); }
+        else if (std::strcmp(arg, "--whisper") == 0) { a.next(); if (!opt_string(a, "--whisper", wcfg.binary)) return 1; }
+        else if (std::strcmp(arg, "--model") == 0) { a.next(); if (!opt_string(a, "--model", wcfg.model)) return 1; }
+        else if (std::strcmp(arg, "--lang") == 0) { a.next(); if (!opt_string(a, "--lang", wcfg.language)) return 1; }
         else {
             std::fprintf(stderr, "error: unknown option '%s'\n", arg);
             return 1;
@@ -412,9 +490,9 @@ int cmd_anonymize(Argv& a) {
 
     while (!a.done()) {
         const char* arg = a.peek();
-        if (std::strcmp(arg, "-o") == 0) { a.next(); output = a.next(); }
+        if (std::strcmp(arg, "-o") == 0) { a.next(); if (!opt_string(a, "-o", output)) return 1; }
         else if (std::strcmp(arg, "--synthetic") == 0) { a.next(); synthetic = true; }
-        else if (std::strcmp(arg, "--replacement") == 0) { a.next(); replacement = a.next(); }
+        else if (std::strcmp(arg, "--replacement") == 0) { a.next(); if (!opt_string(a, "--replacement", replacement)) return 1; }
         else {
             std::fprintf(stderr, "error: unknown option '%s'\n", arg);
             return 1;
@@ -440,13 +518,17 @@ int cmd_anonymize(Argv& a) {
     std::string line;
     size_t flagged = 0;
     while (std::getline(in, line)) {
-        // Preserve our "[HH:MM:SS] " timestamp prefix if present.
+        // Preserve the "[HH:MM:SS] " timestamp prefix (both the short
+        // `[00:00:00]` and the ranged `[00:00:00.000 - 00:00:05.000]` forms).
         std::string prefix;
         std::string body = line;
-        if (line.size() >= 12 && line[0] == '[' && line[9] == ']') {
-            prefix = line.substr(0, 11);
-            body = line.substr(11);
-            if (!body.empty() && body[0] == ' ') body = body.substr(1);
+        if (line.size() >= 3 && line[0] == '[') {
+            const size_t close = line.find(']');
+            if (close != std::string::npos && close <= 48) {
+                prefix = line.substr(0, close + 1);
+                body = line.substr(close + 1);
+                if (!body.empty() && body[0] == ' ') body = body.substr(1);
+            }
         }
         std::vector<std::string> names;
         const std::string red = redact::redact_text(body, ropts, names);
@@ -488,22 +570,26 @@ int cmd_devices() {
     return 0;
 }
 
+// Implemented by the CLI target itself when the Qt GUI is compiled in
+// (src/gui_launch.cpp); absent (weak == null) in GUI-less builds. This keeps
+// the shared ocs_core library free of Qt dependencies.
+extern "C" int ocs_gui_launch(int argc, char** argv) __attribute__((weak));
+
 int cmd_gui() {
-#ifdef OCS_HAS_GUI
-    extern int gui_main(int argc, char** argv);
-    extern int gui_argc;
-    extern char** gui_argv;
-    return gui_main(gui_argc, gui_argv);
-#else
+    if (ocs_gui_launch) return ocs_gui_launch(g_argc, g_argv);
     std::fprintf(stderr, "GUI support was not built. Reconfigure with Qt6 "
-                         "available and VA_GUI=ON.\n");
+                         "available and OCS_GUI=ON.\n");
     return 1;
-#endif
 }
 
 }  // namespace
 
 int run(int argc, char** argv) {
+    g_argc = argc;
+    g_argv = argv;
+    // Apply AI connectivity settings from the environment
+    // (OCS_OLLAMA_URL, OCS_LLAMA_URL, OCS_AI_LAUNCH_CMD, ...).
+    llm::set_config(llm::config_from_env());
     if (argc < 2) {
         print_help();
         return 1;

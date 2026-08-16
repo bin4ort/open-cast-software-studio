@@ -1,0 +1,27 @@
+{
+  "languages": [
+    "cpp"
+  ],
+  "rules": {
+    "debt": true,
+    "hygiene": true,
+    "secrets": true,
+    "code-safety": true
+  },
+  "thresholds": {
+    "debt": 10
+  },
+  "test": [
+    "ctest --test-dir build"
+  ],
+  "docs": [
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "ignore": [
+    "build/",
+    "build-asan/",
+    "install/",
+    "assets/"
+  ]
+}

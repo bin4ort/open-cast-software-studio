@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Open Cast Software Studio contributors
+#include "../common.h"
 #include "audio/virtualmic.h"
 
 #include <portaudio.h>
@@ -44,18 +45,27 @@ int find_loopback_output() {
 }  // namespace
 
 VirtualMicType probe_virtual_mic(std::string& display_name) {
-    // 1. PipeWire/PulseAudio pipe-source.
-    const std::string module = run_capture(
-        "pactl load-module module-pipe-source "
-        "source_name=ocs_probe file=/tmp/ocs_probe.fifo "
-        "format=s16le rate=48000 channels=1 2>/dev/null");
-    if (!module.empty() && module.find_first_of("0123456789") != std::string::npos) {
-        std::system(("pactl unload-module " + module + " 2>/dev/null").c_str());
-        std::remove("/tmp/ocs_probe.fifo");
-        display_name = "OCS Virtual Mic (PipeWire)";
-        return VirtualMicType::PipeSource;
+    // 1. PipeWire/PulseAudio pipe-source. FIFOs live in a private
+    // per-user directory (0700) - fixed /tmp paths are world-writable
+    // and can be pre-created by another user (symlink attacks).
+    const std::string tmpdir = ocs_tmp_dir();
+    const std::string probe_fifo =
+        tmpdir.empty() ? "" : tmpdir + "/probe.fifo";
+    if (!probe_fifo.empty()) {
+        const std::string module = run_capture(
+            "pactl load-module module-pipe-source "
+            "source_name=ocs_probe file=" + ocs::shell_q(probe_fifo) +
+            " format=s16le rate=48000 channels=1 2>/dev/null");
+        if (!module.empty() &&
+            module.find_first_of("0123456789") != std::string::npos) {
+            std::system(("pactl unload-module " + ocs::shell_q(module) +
+                         " 2>/dev/null").c_str());
+            (void)std::remove(probe_fifo.c_str());
+            display_name = "OCS Virtual Mic (PipeWire)";
+            return VirtualMicType::PipeSource;
+        }
+        (void)std::remove(probe_fifo.c_str());
     }
-    std::remove("/tmp/ocs_probe.fifo");
 
     // 2. snd-aloop kernel loopback.
     if (find_loopback_output() >= 0) {
@@ -82,8 +92,15 @@ bool VirtualMic::create(int sample_rate, std::string& err) {
 }
 
 bool VirtualMic::create_pipe_source(int sample_rate, std::string& err) {
-    // Create the FIFO, then expose it to PulseAudio/PipeWire as a source.
-    fifo_path_ = "/tmp/ocs_virtual_mic.fifo";
+    // Create the FIFO in a private per-user directory (0700), then expose
+    // it to PulseAudio/PipeWire as a source. Fixed /tmp paths are
+    // world-writable and can be pre-created by another user.
+    const std::string tmpdir = ocs_tmp_dir();
+    if (tmpdir.empty()) {
+        err = "no private temp directory available";
+        return false;
+    }
+    fifo_path_ = tmpdir + "/virtual_mic.fifo";
     std::remove(fifo_path_.c_str());
     if (mkfifo(fifo_path_.c_str(), 0600) != 0) {
         fifo_path_.clear();
@@ -92,7 +109,7 @@ bool VirtualMic::create_pipe_source(int sample_rate, std::string& err) {
 
     const std::string cmd =
         "pactl load-module module-pipe-source "
-        "source_name=ocs_virtual_mic file=" + fifo_path_ +
+        "source_name=ocs_virtual_mic file=" + ocs::shell_q(fifo_path_) +
         " format=s16le rate=" + std::to_string(sample_rate) +
         " channels=1 2>/dev/null";
     const std::string module = run_capture(cmd);
@@ -163,7 +180,7 @@ void VirtualMic::destroy() {
             fifo_fd_ = -1;
         }
         if (!module_id_.empty()) {
-            std::system(("pactl unload-module " + module_id_ +
+            std::system(("pactl unload-module " + ocs::shell_q(module_id_) +
                          " 2>/dev/null").c_str());
             module_id_.clear();
         }

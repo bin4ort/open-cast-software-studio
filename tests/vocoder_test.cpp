@@ -3,6 +3,7 @@
 #include "test_util.h"
 
 #include <complex>
+#include <limits>
 #include <vector>
 
 #include "dsp/fft.h"
@@ -92,4 +93,20 @@ TEST(streaming_pitch_shifter_steady) {
     CHECK(produced >= n / 2);  // a real stream must be produced
     std::vector<double> d(out.begin() + produced / 2, out.begin() + produced);
     CHECK_NEAR(dominant_freq(d, sr), 440.0 * semitones_to_ratio(4.0), 12.0);
+}
+
+TEST(pitch_shift_rejects_invalid_factors) {
+    std::vector<double> sig(48000, 0.5);
+    CHECK_THROWS(pitch_shift(sig, 0.0, 48000));
+    CHECK_THROWS(pitch_shift(sig, -2.0, 48000));
+    CHECK_THROWS(pitch_shift(sig, std::numeric_limits<double>::quiet_NaN(), 48000));
+    // Extremely small stretch factors are rejected by the vocoder.
+    CHECK_THROWS(pitch_shift(sig, 1e-9, 48000));
+}
+
+TEST(pitch_shift_identity_returns_input) {
+    std::vector<double> sig = {0.1, -0.2, 0.3, 0.0};
+    const auto out = pitch_shift(sig, 1.0, 48000);
+    CHECK(out.size() == sig.size());
+    for (size_t i = 0; i < sig.size(); ++i) CHECK_NEAR(out[i], sig[i], 1e-9);
 }

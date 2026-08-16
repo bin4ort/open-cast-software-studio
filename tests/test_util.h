@@ -53,3 +53,14 @@ inline void report(bool ok, const char* file, int line, const std::string& msg) 
                      (eps)),                                                  \
                     __FILE__, __LINE__,                                       \
                     std::string(#a " ~= " #b))
+
+#define CHECK_THROWS(expr)                                                   \
+    ocs_test::report(([&] {                                                  \
+                         try {                                               \
+                             (void)(expr);                                   \
+                         } catch (...) {                                     \
+                             return true;                                    \
+                         }                                                   \
+                         return false;                                       \
+                     })(),                                                   \
+                    __FILE__, __LINE__, std::string(#expr " throws"))
