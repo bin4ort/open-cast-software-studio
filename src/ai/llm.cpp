@@ -178,7 +178,19 @@ std::string json_escape(const std::string& s) {
             case '\n': out += "\\n"; break;
             case '\r': out += "\\r"; break;
             case '\t': out += "\\t"; break;
-            default: out += c; break;
+            default:
+                if (static_cast<unsigned char>(c) < 0x20) {
+                    // Escape all control characters with \uXXXX
+                    out += "\\u";
+                    const char* hex = "0123456789ABCDEF";
+                    out += hex[(c >> 12) & 0x0F];
+                    out += hex[(c >> 8) & 0x0F];
+                    out += hex[(c >> 4) & 0x0F];
+                    out += hex[c & 0x0F];
+                } else {
+                    out += c;
+                }
+                break;
         }
     }
     return out;

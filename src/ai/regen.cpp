@@ -51,7 +51,12 @@ void Regenerator::configure(const std::string& model, dsp::Gender gender,
     shift_ = shift;
     sample_rate_ = sample_rate > 0 ? sample_rate : 48000;
     configured_ = !model_.empty();
-    if (thread_.joinable()) return;
+    if (thread_.joinable()) {
+        stop_ = true;
+        cv_.notify_all();
+        if (thread_.joinable()) thread_.join();
+    }
+    stop_ = false;  // Reset stop flag before starting a new thread
     thread_ = std::thread(&Regenerator::worker, this);
 }
 

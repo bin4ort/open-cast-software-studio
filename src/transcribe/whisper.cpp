@@ -80,9 +80,8 @@ bool transcribe(const std::string& input_path, const WhisperConfig& cfg,
     if (model.empty()) model = find_whisper_model();
 
     const auto base = std::filesystem::path(input_path).filename().string();
-    const auto outbase =
-        (std::filesystem::temp_directory_path() / ("ocs_whisper_" + base)).string();
-    const auto outjson = outbase + ".json";
+    const auto tmpdir = std::filesystem::temp_directory_path().string();
+    const auto outjson = tmpdir + "/ocs_whisper_" + base + ".json";
 
     const std::filesystem::path bin_path(binary);
     const std::string bin_name = bin_path.filename().string();
@@ -92,15 +91,16 @@ bool transcribe(const std::string& input_path, const WhisperConfig& cfg,
 
     std::string cmd;
     if (is_cpp_cli) {
+        // Use -od <dir> with basename only for predictable output location
         cmd = ocs::shell_q(binary) + " -f " + ocs::shell_q(input_path) +
-              " -oj -of " + ocs::shell_q(outbase);
+              " -oj -od " + ocs::shell_q(tmpdir) + " -o " + ocs::shell_q(base);
         if (!model.empty()) cmd += " -m " + ocs::shell_q(model);
         if (!cfg.language.empty())
             cmd += " -l " + ocs::shell_q(cfg.language);
     } else {
         cmd = ocs::shell_q(binary) + " " + ocs::shell_q(input_path) +
               " --output_format json --output_dir " +
-              ocs::shell_q(std::filesystem::temp_directory_path().string());
+              ocs::shell_q(tmpdir);
         if (!cfg.language.empty())
             cmd += " --language " + ocs::shell_q(cfg.language);
     }

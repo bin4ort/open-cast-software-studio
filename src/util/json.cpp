@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 
 namespace ocs::util {
@@ -163,9 +164,46 @@ private:
                             else if (h >= 'A' && h <= 'F') cp |= h - 'A' + 10;
                             else throw JsonError("bad \\u escape");
                         }
+                        // Handle surrogate pairs BEFORE encoding: if cp is a high surrogate (0xD800-0xDBFF),
+                        // expect the next \u to be a low surrogate (0xDC00-0xDFFF) and combine.
+                        if (cp >= 0xD800 && cp <= 0xDBFF) {
+                            if (i_ + 5 <= s_.size() && s_[i_] == '\\' && s_[i_+1] == 'u') {
+                                unsigned int low = 0;
+                                i_ += 2;  // skip \u
+                                for (int k = 0; k < 4; ++k) {
+                                    const char h = s_[i_++];
+                                    low <<= 4;
+                                    if (h >= '0' && h <= '9') low |= h - '0';
+                                    else if (h >= 'a' && h <= 'f') low |= h - 'a' + 10;
+                                    else if (h >= 'A' && h <= 'F') low |= h - 'A' + 10;
+                                    else throw JsonError("bad \\u escape");
+                                }
+                                if (low >= 0xDC00 && low <= 0xDFFF) {
+                                    // Combine high + low surrogate into single code point
+                                    cp = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00);
+                                } else {
+                                    throw JsonError("invalid surrogate pair");
+                                }
+                                // Encode the combined code point (4 bytes for U+10000+)
+                                out += static_cast<char>(0xF0 | (cp >> 18));
+                                out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+                                out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+                                out += static_cast<char>(0x80 | (cp & 0x3F));
+                                break;  // Exit switch after handling surrogate pair
+                            }
+                        }
                         // Encode as UTF-8 (2-4 bytes depending on the
                         // code point; surrogate escapes produce single
                         // BMP code points, which is fine for transcripts).
+                        // Reject orphan surrogates (low without high, or high not followed by valid low)
+                        if (cp >= 0xD800 && cp <= 0xDC00) {
+                            // Low surrogate not preceded by high surrogate - error
+                            throw JsonError("invalid surrogate pair");
+                        }
+                        if (cp >= 0xE000 && cp <= 0xFFFF) {
+                            // High surrogate not followed by valid low surrogate - error
+                            throw JsonError("invalid surrogate pair");
+                        }
                         if (cp < 0x80) {
                             out += static_cast<char>(cp);
                         } else if (cp < 0x800) {
