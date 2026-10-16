@@ -66,6 +66,7 @@ AudioData read_file(const std::string& path, std::string* err) {
         return {};
     }
     if (!sndfile_can_handle(path)) {
+#ifdef OCS_HAVE_FFMPEG
         if (ffmpeg_available()) {
             std::string e;
             const std::string wav = temp_wav_path(e);
@@ -73,7 +74,6 @@ AudioData read_file(const std::string& path, std::string* err) {
                 if (err) *err = e;
                 return {};
             }
-#ifdef OCS_HAVE_FFMPEG
             if (system(("ffmpeg -y -v error -i " + ocs::shell_q(path) +
                         " -ac 1 -ar 48000 " + ocs::shell_q(wav))
                            .c_str()) != 0) {
@@ -83,8 +83,8 @@ AudioData read_file(const std::string& path, std::string* err) {
             AudioData ad = read_file(wav, err);
             (void)std::remove(wav.c_str()); /* temp cleanup, best effort */
             return ad;
-#endif
         }
+#endif
         if (err) *err = "unsupported format (and no ffmpeg available): " + path;
         return {};
     }
