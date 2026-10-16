@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -58,6 +59,9 @@ private:
     void* loop_stream_ = nullptr;
     int loop_device_ = -1;
     std::vector<float> floatbuf_;
+
+    // Thread safety.
+    std::mutex mu_;
 };
 
 // Static probe without creating anything.

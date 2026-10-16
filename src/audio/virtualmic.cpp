@@ -171,47 +171,51 @@ bool VirtualMic::create_alsa_loopback(int sample_rate, std::string& err) {
 }
 
 void VirtualMic::destroy() {
-    if (!active_) {
-        return;
+    int fifo_fd;
+    void* loop_stream;
+    {
+        std::lock_guard<std::mutex> lock(mu_);
+        active_ = false;
+        fifo_fd = fifo_fd_;
+        loop_stream = loop_stream_;
+        fifo_fd_ = -1;
+        loop_stream_ = nullptr;
     }
-    if (type_ == VirtualMicType::PipeSource) {
-        if (fifo_fd_ >= 0) {
-            ::close(fifo_fd_);
-            fifo_fd_ = -1;
-        }
-        if (!module_id_.empty()) {
-            std::system(("pactl unload-module " + ocs::shell_q(module_id_) +
-                         " 2>/dev/null").c_str());
-            module_id_.clear();
-        }
-        std::remove(fifo_path_.c_str());
-        fifo_path_.clear();
-    } else if (type_ == VirtualMicType::AlsaLoopback) {
-        if (loop_stream_) {
-            Pa_StopStream(static_cast<PaStream*>(loop_stream_));
-            Pa_CloseStream(static_cast<PaStream*>(loop_stream_));
-            loop_stream_ = nullptr;
-        }
+
+    if (fifo_fd >= 0) {
+        ::close(fifo_fd);
     }
-    active_ = false;
-    type_ = VirtualMicType::None;
+    if (loop_stream) {
+        Pa_StopStream(static_cast<PaStream*>(loop_stream));
+        Pa_CloseStream(static_cast<PaStream*>(loop_stream));
+    }
 }
 
 void VirtualMic::write(const float* samples, size_t n) {
     if (!active_ || n == 0) return;
 
-    if (type_ == VirtualMicType::PipeSource) {
+    VirtualMicType mic_type;
+    int fifo_fd;
+    void* loop_stream;
+    {
+        std::lock_guard<std::mutex> lock(mu_);
+        mic_type = type_;
+        fifo_fd = fifo_fd_;
+        loop_stream = loop_stream_;
+    }
+
+    if (mic_type == VirtualMicType::PipeSource) {
         s16buf_.resize(n);
         for (size_t i = 0; i < n; ++i) {
             float v = samples[i];
             v = std::max(-1.0f, std::min(1.0f, v));
             s16buf_[i] = static_cast<int16_t>(v * 32767.0f);
         }
-        const ssize_t w = ::write(fifo_fd_, s16buf_.data(),
+        const ssize_t w = ::write(fifo_fd, s16buf_.data(),
                                   s16buf_.size() * sizeof(int16_t));
         (void)w;  // partial/dropped writes are acceptable
-    } else if (type_ == VirtualMicType::AlsaLoopback && loop_stream_) {
-        PaError e = Pa_WriteStream(static_cast<PaStream*>(loop_stream_),
+    } else if (mic_type == VirtualMicType::AlsaLoopback && loop_stream) {
+        PaError e = Pa_WriteStream(static_cast<PaStream*>(loop_stream),
                                    samples, static_cast<unsigned long>(n));
         if (e == paOutputUnderflowed || e == paNoError) {
             return;
