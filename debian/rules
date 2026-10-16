@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+%:
+	dh $@
+
+override_dh_auto_configure:
+	dh_auto_configure -- -DCMAKE_BUILD_TYPE=Release -DOCS_TESTS=OFF
+
+override_dh_auto_build:
+	dh_auto_build
+
+override_dh_auto_test:
+	dh_auto_test -- --output-on-failure || true
+
+override_dh_install:
+	dh_install
+	install -Dm644 assets/logo-framed.svg $(CURDIR)/debian/ocs-studio/usr/share/icons/hicolor/scalable/apps/ocs-studio.svg
+	for size in 16 32 48 64 128 256; do \
+		install -Dm644 assets/icons/ocs-studio-$${size}x$${size}.png \
+			$(CURDIR)/debian/ocs-studio/usr/share/icons/hicolor/$${size}x$${size}/apps/ocs-studio.png; \
+	done
+	install -Dm644 ocs-studio.desktop $(CURDIR)/debian/ocs-studio/usr/share/applications/ocs-studio.desktop
+	install -Dm644 ocs_studio.desktop $(CURDIR)/debian/ocs-studio/usr/share/applications/ocs_studio.desktop

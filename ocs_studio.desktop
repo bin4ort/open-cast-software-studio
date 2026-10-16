@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=OCS Studio CLI
+Comment=Voice transformation toolkit: pitch shifting, gender conversion, virtual mic
+Exec=ocs_studio %F
+Terminal=true
+Categories=Audio;AudioVideo;AudioEditing;
+MimeType=audio/wav;audio/flac;audio/ogg;audio/mpeg;audio/mp4;
+Keywords=voice;audio;pitch;formant;gender;transformation;streaming;

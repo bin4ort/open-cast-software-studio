@@ -1,0 +1,43 @@
+Source: ocs-studio
+Section: sound
+Priority: optional
+Maintainer: OCS Studio Contributors <maintainer@ocs-studio.example>
+Build-Depends:
+ cmake,
+ debhelper-compat (= 13),
+ libqt6core6a | libqt5core5a,
+ libqt6gui6 | libqt5gui5,
+ libqt6widgets6 | libqt5widgets5,
+ libqt6multimedia6 | libqt5multimedia5,
+ libqt6network6 | libqt5network5,
+ libportaudio2,
+ libsndfile1,
+ libfftw3-dev,
+ libespeak-ng-dev,
+ nlohmann-json3-dev,
+ libcurl4-openssl-dev,
+ libffmpeg-dev (>= 4.0)
+Standards-Version: 4.6.0
+Rules-Requires-Root: no
+
+Package: ocs-studio
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+ qtbase5-dev | qtbase6-dev,
+ libportaudio2,
+ libsndfile1,
+ libfftw3-3,
+ libespeak-ng1,
+ libcurl4,
+ libffmpeg6 (>= 4.0),
+ xvfb
+Description: Open Cast Software Studio - voice transformation toolkit
+ OCS Studio is a voice transformation toolkit that lets you change your
+ voice to sound male, female, or like a character — live or on
+ recordings — for voice acting, voice-over, streaming, or privacy.
+ Includes VAD-gated pitch/formant shifting, gender conversion,
+ AI-assisted hybrid re-voicing, transcript extraction & redaction,
+ a virtual microphone for routing the anonymized voice to other apps,
+ and a native Qt GUI.

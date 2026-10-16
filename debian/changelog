@@ -1,0 +1,17 @@
+ocs-studio (0.2.0-1) unstable; urgency=medium
+
+  * Initial release.
+  * Voice transformation toolkit with Qt6 GUI.
+  * Pitch/formant shifting, gender conversion, hybrid mode.
+  * AI-assisted re-voicing via Ollama/llama.cpp.
+  * Speech-to-text via whisper.cpp.
+  * Virtual microphone for PipeWire/snd-aloop.
+  * PII redaction for transcripts.
+
+ -- OCS Studio Contributors <maintainer@ocs-studio.example>  Sat, 22 Aug 2026 17:06:06 +0200
+
+ocs-studio (0.1.0-1) experimental; urgency=low
+
+  * Initial experimental release.
+
+ -- OCS Studio Contributors <maintainer@ocs-studio.example>  Mon, 04 Aug 2026 00:00:00 +0000

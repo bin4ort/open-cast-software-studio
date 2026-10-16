@@ -1,0 +1,29 @@
+ocs-studio Debian Package
+=========================
+
+Dependencies
+------------
+To use ocs-studio you need:
+- Qt6 or Qt5 (bundled in dependencies)
+- PortAudio (libportaudio2)
+- libsndfile1
+- FFTW3 (libffw3-3)
+- espeak-ng (libespeak-ng1)
+- libcurl4
+- ffmpeg (libffmpeg6 or higher)
+
+Optional dependencies for full functionality:
+- ollama: AI voice correction and text rewriting
+- llama.cpp: AI voice correction and text rewriting
+- whisper-cpp: Speech-to-text transcription
+- xvfb: For running tests without display
+
+Usage
+-----
+After installation, run:
+  ocs_studio              # CLI mode
+  ocs_studio_gui          # GUI mode
+
+Configuration
+-------------
+Settings are stored in ~/.config/ocs_studio/settings.json.
