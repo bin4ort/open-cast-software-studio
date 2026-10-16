@@ -166,6 +166,10 @@ inline double wrap_phase(double phase) {
 PitchShifter::PitchShifter(size_t nfft, size_t osamp, double pitch_factor)
     : nfft_(nfft), osamp_(osamp), hop_(nfft / osamp),
       hs_(nfft / osamp), pitch_factor_(pitch_factor), stft_(nfft, nfft / osamp) {
+    // Guard against hop_=0 when osamp > nfft (causes infinite loop in analyze_available_frames)
+    if (hop_ == 0) hop_ = 1;
+    if (hs_ == 0) hs_ = 1;
+
     const size_t nb = nfft / 2 + 1;
     prev_phase_.assign(nb, 0.0);
     synth_phase_.assign(nb, 0.0);
