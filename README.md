@@ -48,11 +48,10 @@ See [CHANGELOG.md](CHANGELOG.md) for the release history.
   deanonymization).
 - **Native Qt6 GUI** (`ocs_studio_gui`) and a full-featured CLI
   (`ocs_studio`).
-- **Logo** — vector logos live in `assets/` (all square 1:1): a vivid
-  gradient "processed" chirp with per-cycle dynamics and a grayscale
-  "original" echo that tries to follow it, drifts out of sync and fails
-  (`logo.svg`); framed variants with round frames (`logo-framed*.svg`, used
-  for the window and desktop icons);
+- **Logo** — vector logos live in `assets/` (all square 1:1): a single
+  vivid gradient chirp with per-cycle dynamics, a breath pause and a slight
+  drop shadow (`logo.svg`); framed variants with round frames
+  (`logo-framed*.svg`, used for the window and desktop icons);
   light/dark theme versions (`logo-light.svg`, `logo-dark.svg`, picked
   automatically by the GUI from the system theme); a multicolored version
   (`logo-colorful.svg`); a monochrome mark (`logo-mono.svg`); a
