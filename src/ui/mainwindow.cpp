@@ -180,33 +180,53 @@ QWidget* MainWindow::build_process_tab() {
     auto* inner = new QWidget;
     auto* layout = new QVBoxLayout(inner);
 
-    auto* file_group = new QGroupBox(QStringLiteral("Files"));
-    auto* file_form = new QFormLayout(file_group);
+    // Section 1: Files
+    auto* files_frame = new QFrame;
+    files_frame->setFrameShape(QFrame::StyledPanel);
+    files_frame->setFrameShadow(QFrame::Raised);
+    auto* files_layout = new QVBoxLayout(files_frame);
+    files_layout->setContentsMargins(0, 0, 0, 0);
+    files_layout->setSpacing(10);
+
+    auto* files_form = new QFormLayout;
+    files_form->setSpacing(8);
 
     auto* pick_row = new QHBoxLayout;
     input_path_ = new QLineEdit;
-    auto* pick = new QPushButton(QStringLiteral("Browse..."));
+    input_path_->setPlaceholderText(QStringLiteral("Select input audio"));
+    auto* pick = new QPushButton(QStringLiteral("Browse"));
+    pick->setMinimumWidth(80);
     connect(pick, &QPushButton::clicked, this, &MainWindow::on_pick_input);
     pick_row->addWidget(input_path_, 1);
     pick_row->addWidget(pick);
-    file_form->addRow(QStringLiteral("Input:"), pick_row);
+    files_form->addRow(QStringLiteral("Input"), pick_row);
 
     output_path_ = new QLineEdit;
-    output_path_->setPlaceholderText(QStringLiteral("(default: <input>.anon.ext)"));
-    file_form->addRow(QStringLiteral("Output:"), output_path_);
-    layout->addWidget(file_group);
+    output_path_->setPlaceholderText(QStringLiteral("Output saved here"));
+    files_form->addRow(QStringLiteral("Output"), output_path_);
+    files_layout->addLayout(files_form);
+    layout->addWidget(files_frame, 1);
 
-    auto* voice_group = new QGroupBox(QStringLiteral("Voice"));
-    auto* voice_layout = new QVBoxLayout(voice_group);
+    // Section 2: Voice
+    auto* voice_frame = new QFrame;
+    voice_frame->setFrameShape(QFrame::StyledPanel);
+    voice_frame->setFrameShadow(QFrame::Raised);
+    auto* voice_layout = new QVBoxLayout(voice_frame);
+    voice_layout->setContentsMargins(0, 0, 0, 0);
     voice_panel_ = new VoicePanel(false);
     voice_layout->addWidget(voice_panel_);
-    layout->addWidget(voice_group);
+    layout->addWidget(voice_frame, 1);
 
-    // Voice preview: hear the configured voice reading an example text.
-    auto* preview_group = new QGroupBox(QStringLiteral("Voice preview"));
-    auto* preview_layout = new QVBoxLayout(preview_group);
+    // Section 3: Voice Preview
+    auto* preview_frame = new QFrame;
+    preview_frame->setFrameShape(QFrame::StyledPanel);
+    preview_frame->setFrameShadow(QFrame::Raised);
+    auto* preview_layout = new QVBoxLayout(preview_frame);
+    preview_layout->setContentsMargins(0, 0, 0, 0);
+    preview_layout->setSpacing(8);
+
     preview_phrase_combo_ = new QComboBox;
-    preview_phrase_combo_->addItem(QStringLiteral("Use custom text below"), "");
+    preview_phrase_combo_->addItem(QStringLiteral("Use custom text"), "");
     preview_phrase_combo_->addItem(QStringLiteral("Hello, my name is Alex and I am here to help you."));
     preview_phrase_combo_->addItem(QStringLiteral("Welcome back to the show, everyone!"));
     preview_phrase_combo_->addItem(QStringLiteral("In a world of endless possibilities, one voice can change everything."));
@@ -215,71 +235,156 @@ QWidget* MainWindow::build_process_tab() {
                 if (i > 0) preview_text_edit_->setPlainText(preview_phrase_combo_->currentText());
             });
     preview_text_edit_ = new QPlainTextEdit;
-    preview_text_edit_->setFixedHeight(70);
-    preview_text_edit_->setPlaceholderText(QStringLiteral("Example text for the preview..."));
-    preview_button_ = new QPushButton(QStringLiteral("Preview voice"));
+    preview_text_edit_->setFixedHeight(60);
+    preview_text_edit_->setPlaceholderText(QStringLiteral("Type to preview"));
+    preview_button_ = new QPushButton(QStringLiteral("Preview"));
     connect(preview_button_, &QPushButton::clicked, this, &MainWindow::on_preview_text);
-    preview_status_ = new QLabel(QStringLiteral("espeak-ng required for preview."));
+    preview_status_ = new QLabel(QStringLiteral("espeak-ng required"));
     preview_status_->setWordWrap(true);
-    preview_layout->addWidget(preview_phrase_combo_);
-    preview_layout->addWidget(preview_text_edit_);
-    auto* preview_row = new QHBoxLayout;
-    preview_row->addWidget(preview_button_);
-    preview_row->addWidget(preview_status_, 1);
-    preview_layout->addLayout(preview_row);
-    layout->addWidget(preview_group);
+    preview_status_->setMaximumWidth(200);
 
-    auto* opts_group = new QGroupBox(QStringLiteral("Options"));
-    auto* opts_form = new QFormLayout(opts_group);
+    auto* preview_top = new QHBoxLayout;
+    preview_top->addWidget(preview_phrase_combo_);
+    preview_layout->addLayout(preview_top);
 
+    auto* preview_mid = new QHBoxLayout;
+    preview_mid->addWidget(preview_text_edit_);
+    preview_layout->addLayout(preview_mid);
+
+    auto* preview_bot = new QHBoxLayout;
+    preview_bot->addWidget(preview_button_);
+    preview_bot->addWidget(preview_status_, 1);
+    preview_layout->addLayout(preview_bot);
+    layout->addWidget(preview_frame, 1);
+
+    // Section 4: Options
+    auto* opts_frame = new QFrame;
+    opts_frame->setFrameShape(QFrame::StyledPanel);
+    opts_frame->setFrameShadow(QFrame::Raised);
+    auto* opts_layout = new QVBoxLayout(opts_frame);
+    opts_layout->setContentsMargins(0, 0, 0, 0);
+    opts_layout->setSpacing(10);
+
+    auto* mode_row = new QHBoxLayout;
     mode_combo_ = new QComboBox;
-    mode_combo_->addItem(QStringLiteral("Global (shift all speech)"), "global");
-    mode_combo_->addItem(QStringLiteral("Selective (PII segments only)"), "selective");
-    mode_combo_->addItem(QStringLiteral("Hybrid (AI gender + re-voiced phrases)"), "hybrid");
-    opts_form->addRow(QStringLiteral("Mode:"), mode_combo_);
+    mode_combo_->addItem(QStringLiteral("Global"), "global");
+    mode_combo_->addItem(QStringLiteral("Selective"), "selective");
+    mode_combo_->addItem(QStringLiteral("Hybrid"), "hybrid");
+    mode_row->addWidget(new QLabel(QStringLiteral("Mode: ")));
+    mode_row->addStretch();
+    mode_row->addWidget(mode_combo_);
+    opts_layout->addLayout(mode_row);
 
+    auto* opts_check_row = new QHBoxLayout;
     denoise_check_ = new QCheckBox(QStringLiteral("Spectral denoising"));
-    transcribe_check_ = new QCheckBox(QStringLiteral("Transcribe + redact along the way"));
-    opts_form->addRow(QStringLiteral(""), denoise_check_);
-    opts_form->addRow(QStringLiteral(""), transcribe_check_);
-    layout->addWidget(opts_group);
+    transcribe_check_ = new QCheckBox(QStringLiteral("Transcribe + redact"));
+    opts_check_row->addWidget(denoise_check_);
+    opts_check_row->addWidget(transcribe_check_);
+    opts_layout->addLayout(opts_check_row);
+    layout->addWidget(opts_frame, 1);
 
-    auto* run_row = new QHBoxLayout;
+    // Section 5: Process
+    auto* process_frame = new QFrame;
+    process_frame->setFrameShape(QFrame::StyledPanel);
+    process_frame->setFrameShadow(QFrame::Raised);
+    auto* process_layout = new QVBoxLayout(process_frame);
+    process_layout->setContentsMargins(0, 0, 0, 0);
+    process_layout->setSpacing(12);
+
+    auto* process_top = new QHBoxLayout;
     process_button_ = new QPushButton(QStringLiteral("Process"));
+    process_button_->setMinimumWidth(120);
     connect(process_button_, &QPushButton::clicked, this, &MainWindow::on_process);
+    process_top->addWidget(process_button_);
     status_label_ = new QLabel(QStringLiteral("Idle"));
-    run_row->addWidget(process_button_);
-    run_row->addWidget(status_label_, 1);
-    layout->addLayout(run_row);
+    status_label_->setWordWrap(true);
+    status_label_->setMinimumHeight(24);
+    process_top->addWidget(status_label_, 1);
+    process_layout->addLayout(process_top);
+    layout->addWidget(process_frame, 1);
 
-    auto* wave_row = new QHBoxLayout;
+    // Section 6: Waveform
+    auto* wave_frame = new QFrame;
+    wave_frame->setFrameShape(QFrame::StyledPanel);
+    wave_frame->setFrameShadow(QFrame::Raised);
+    wave_frame->setFixedHeight(140);
+    auto* wave_layout = new QVBoxLayout(wave_frame);
+    wave_layout->setContentsMargins(0, 0, 0, 0);
+    wave_layout->setSpacing(8);
+
+    // Top row: waveforms
+    auto* wave_top = new QHBoxLayout;
+    wave_top->setContentsMargins(0, 0, 0, 0);
+    wave_top->setSpacing(8);
     input_waveform_ = new Waveform;
     output_waveform_ = new Waveform;
-    wave_row->addWidget(input_waveform_);
-    wave_row->addWidget(output_waveform_);
-    layout->addLayout(wave_row, 1);
+    wave_top->addWidget(input_waveform_, 1);
+    wave_top->addWidget(output_waveform_, 1);
+    wave_layout->addLayout(wave_top);
 
-    // Compare + AI correction controls for the two graphs.
+    // Bottom row: controls inside the waveform frame
     auto* wave_controls = new QHBoxLayout;
-    auto* wave_hint = new QLabel(QStringLiteral(
-        "Original vs processed. Compare overlaps both graphs (grayscale = "
-        "the other recording)."));
-    wave_hint->setWordWrap(true);
-    compare_button_ = new QPushButton(QStringLiteral("Compare (overlap)"));
+    wave_controls->setContentsMargins(8, 4, 8, 4);
+    wave_controls->setSpacing(8);
+
+    compare_button_ = new QPushButton(QStringLiteral("Compare"));
     compare_button_->setCheckable(true);
+    compare_button_->setMinimumWidth(100);
     connect(compare_button_, &QPushButton::toggled, this,
             &MainWindow::on_compare_toggled);
-    correct_button_ = new QPushButton(QStringLiteral("Correct with AI"));
+    wave_controls->addWidget(compare_button_);
+
+    correct_button_ = new QPushButton(QStringLiteral("AI Correct"));
+    correct_button_->setEnabled(false);
     connect(correct_button_, &QPushButton::clicked, this,
             &MainWindow::on_correct_with_ai);
-    correct_button_->setEnabled(false);
     correct_button_->setToolTip(QStringLiteral(
-        "Feeds the waveform difference to the AI, applies the suggested "
-        "voice correction and re-processes the file."));
-    wave_controls->addWidget(compare_button_);
+        "AI analyzes the difference and suggests voice corrections. "
+        "Click to apply and re-process."));
+    correct_button_->setStyleSheet(
+        "QPushButton { "
+        "    background-color: #3a7bd5; "
+        "    color: white; "
+        "    border: 1px solid #2a5a8a; "
+        "    border-radius: 4px; "
+        "    padding: 4px 12px; "
+        "    font-size: 11px; "
+        "} "
+        "QPushButton:hover { "
+        "    background-color: #4a8be5; "
+        "    border: 1px solid #3a6a9a; "
+        "} "
+        "QPushButton:pressed { "
+        "    background-color: #2a5a8a; "
+        "    border: 1px solid #1a4a7a; "
+        "}"
+    );
     wave_controls->addWidget(correct_button_);
+
+    wave_hint = new QLabel(QStringLiteral(
+        "Grayscale = overlap. Use Compare to see differences."));
+    wave_hint->setWordWrap(true);
+    wave_hint->setMaximumWidth(280);
+    wave_hint->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     wave_controls->addWidget(wave_hint, 1);
-    layout->addLayout(wave_controls);
+    wave_layout->addLayout(wave_controls);
+
+    // AI Correction note - subtle info with custom styling
+    auto* ai_note = new QLabel();
+    ai_note->setWordWrap(true);
+    ai_note->setAlignment(Qt::AlignLeft);
+    ai_note->setStyleSheet(
+        "QLabel { "
+        "    color: #999; "
+        "    font-size: 11px; "
+        "    padding: 3px 4px; "
+        "    line-height: 1.2; "
+        "}"
+    );
+    ai_note->setText(
+        "AI Correct analyzes original vs processed audio to suggest pitch and formant adjustments. "
+        "It considers your target voice settings and explains why a correction was made.");
+    layout->addWidget(ai_note);
 
     scroll->setWidget(inner);
     page_layout->addWidget(scroll);

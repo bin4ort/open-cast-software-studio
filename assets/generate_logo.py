@@ -4,19 +4,17 @@
 """
 OCS Studio logo generator.
 
-All variants share one square (1:1, 512x512) canvas with two waveforms:
+All variants share one square (1:1, 512x512) canvas with a single vivid
+waveform:
 
-  main - a vivid "processed" chirp: frequency rises left to right along a
-         smoothstep curve, opening with a proper small crest towards the
-         top, then swelling to full amplitude with per-cycle dynamics, a
-         soft "breath" pause around two thirds in, and a raised-cosine
-         fade. Its stroke tapers from thick to thin.
+  main - a "processed" chirp: frequency rises left to right along a mild
+         S-curve, opening with a small crest towards the top, swelling to
+         full amplitude with per-cycle dynamics, a soft "breath" pause
+         around two thirds in, and a raised-cosine fade. Its stroke tapers
+         from thick to thin.
 
-  echo - a grayscale "original" that matches the main line exactly (same
-         amplitude, same dynamics, no jitter) - it tracks the phrase from
-         the start, then a quadratic phase drift pulls it out of sync:
-         trying to follow, but failing. Its stroke tapers the other way
-         (thin to thick).
+  shadow - the colored line is drawn with a slight drop shadow (an offset
+           translucent copy, no SVG filters, so it renders in Qt too).
 
 Variants:
 

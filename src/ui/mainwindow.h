@@ -83,6 +83,7 @@ private:
     Waveform* output_waveform_ = nullptr;
     QPushButton* compare_button_ = nullptr;
     QPushButton* correct_button_ = nullptr;
+    QLabel* wave_hint = nullptr;
     QTimer* process_poll_timer_ = nullptr;
 
     // AI correction of the processed output (fed with the waveform diff).
